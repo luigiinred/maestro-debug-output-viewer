@@ -18,6 +18,8 @@
     "electron:prepare": "node electron/build.cjs",
     "electron:make-icons": "node electron/make-icons.cjs",
     "check:signing": "node scripts/local-sign.cjs",
+    "fix:signing": "node scripts/fix-code-signing.cjs",
+    "package:sign": "node scripts/package-and-sign.cjs",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",

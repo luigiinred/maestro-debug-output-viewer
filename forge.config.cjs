@@ -19,6 +19,17 @@ module.exports = {
       type: "distribution",
       platform: "darwin",
       "signature-flags": "library",
+      "signature-size": 9000,
+      ignore: [
+        "/node_modules/.cache",
+        "/node_modules/.bin",
+        ".git",
+        ".github",
+        "scripts",
+        "docs",
+      ],
+      preAutoEntitlements: false,
+      binaries: [],
     },
     osxNotarize:
       process.env.APPLE_ID &&
@@ -40,6 +51,7 @@ module.exports = {
         schemes: ["maestro-viewer"],
       },
     ],
+    extraResource: [path.resolve("assets")],
   },
   rebuildConfig: {},
   makers: [

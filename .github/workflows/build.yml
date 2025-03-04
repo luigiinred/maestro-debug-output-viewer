@@ -36,17 +36,29 @@ jobs:
       - name: Build Vite app
         run: npm run build
 
-      - name: Make Electron app with Forge
+      # Create necessary assets
+      - name: Create DMG background
+        run: node scripts/create-dmg-background.cjs
+
+      - name: Create app icons
+        run: node scripts/create-icons.cjs
+
+      # Make the scripts executable
+      - name: Make scripts executable
+        run: |
+          chmod +x scripts/fix-code-signing.cjs
+          chmod +x scripts/package-and-sign.cjs
+
+      # Package and sign the app
+      - name: Package and sign the app
         env:
-          # Set environment variables for notarization
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
-          # Set environment variable for code signing
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: npm run make
+        run: npm run package:sign
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
