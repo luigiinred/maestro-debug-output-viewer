@@ -5,20 +5,21 @@ const path = require("path");
 module.exports = {
   packagerConfig: {
     asar: true,
-    osxSign: process.env.APPLE_TEAM_ID
-      ? {
-          identity: process.env.APPLE_TEAM_ID
-            ? `Developer ID Application: ${process.env.APPLE_TEAM_NAME} (${process.env.APPLE_TEAM_ID})`
-            : null,
-          hardenedRuntime: true,
-          entitlements: path.resolve("electron/build/entitlements.mac.plist"),
-          entitlementsInherit: path.resolve(
-            "electron/build/entitlements.mac.plist"
-          ),
-          gatekeeperAssess: false,
-          "gatekeeper-assess": false,
-        }
-      : undefined,
+    osxSign: {
+      identity: process.env.APPLE_TEAM_ID
+        ? `Developer ID Application: ${process.env.APPLE_TEAM_NAME} (${process.env.APPLE_TEAM_ID})`
+        : undefined,
+      hardenedRuntime: true,
+      entitlements: path.resolve("electron/build/entitlements.mac.plist"),
+      entitlementsInherit: path.resolve(
+        "electron/build/entitlements.mac.plist"
+      ),
+      gatekeeperAssess: false,
+      "gatekeeper-assess": false,
+      type: "distribution",
+      platform: "darwin",
+      "signature-flags": "library",
+    },
     osxNotarize:
       process.env.APPLE_ID &&
       process.env.APPLE_ID_PASSWORD &&
@@ -33,6 +34,12 @@ module.exports = {
     icon: path.resolve("electron/icons/icon"),
     appBundleId: "com.maestro.viewer",
     appCategoryType: "public.app-category.developer-tools",
+    protocols: [
+      {
+        name: "Maestro Viewer",
+        schemes: ["maestro-viewer"],
+      },
+    ],
   },
   rebuildConfig: {},
   makers: [

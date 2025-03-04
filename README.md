@@ -73,55 +73,28 @@ npm run electron:build
 
 The built Mac app will be available in the `release` directory.
 
-## GitHub Actions Code Signing
+## GitHub Actions Setup
 
-This project uses Electron Forge for building and signing the application. To enable code signing in GitHub Actions, you need to set up the following secrets in your GitHub repository:
+To enable automatic building and signing of the application in GitHub Actions, you need to set up the following secrets in your GitHub repository:
 
-### For macOS Code Signing and Notarization
+1. `APPLE_ID`: Your Apple ID email
+2. `APPLE_ID_PASSWORD`: Your app-specific password for your Apple ID
+3. `APPLE_TEAM_ID`: Your Apple Developer Team ID
+4. `APPLE_TEAM_NAME`: Your Apple Developer Team Name
+5. `CSC_LINK`: Base64-encoded certificate (.p12 file)
+6. `CSC_KEY_PASSWORD`: Password for the certificate
+7. `KEYCHAIN_PASSWORD`: A temporary password for the keychain in GitHub Actions (can be any secure string)
 
-1. **APPLE_CERTIFICATE_P12**: Base64-encoded Apple Developer certificate (p12 file)
+### Setting up the KEYCHAIN_PASSWORD secret
 
-   ```bash
-   base64 -i path/to/certificate.p12 | pbcopy
-   ```
-
-2. **APPLE_CERTIFICATE_PASSWORD**: Password for the p12 certificate
-
-3. **KEYCHAIN_PASSWORD**: Password for the temporary keychain created during the build
-   (Can be any secure string you choose)
-
-4. **APPLE_ID**: Your Apple Developer account email
-
-5. **APPLE_ID_PASSWORD**: Your app-specific password for your Apple ID
-   (Generate at https://appleid.apple.com/account/manage)
-
-6. **APPLE_TEAM_ID**: Your Apple Developer Team ID
-   (Find in your Apple Developer account)
-
-7. **APPLE_TEAM_NAME**: Your Apple Developer Team Name
-   (Find in your Apple Developer account)
-
-### Setting Up Secrets in GitHub
+The `KEYCHAIN_PASSWORD` is used by the GitHub Actions workflow to create a temporary keychain for storing your code signing certificate during the build process. This can be any secure string you choose, as it's only used temporarily during the build.
 
 1. Go to your GitHub repository
 2. Click on "Settings" > "Secrets and variables" > "Actions"
-3. Click "New repository secret" and add each of the secrets listed above
-
-### Local Development with Code Signing
-
-For local development with code signing:
-
-1. Create a `.env` file based on `.env.example` with your signing credentials
-2. Run the check:signing script to verify your environment:
-   ```bash
-   npm run check:signing
-   ```
-3. Build the app with Electron Forge:
-   ```bash
-   npm run make
-   ```
-
-The signed app will be available in the `out/make` directory.
+3. Click "New repository secret"
+4. Name: `KEYCHAIN_PASSWORD`
+5. Value: Create a secure password (e.g., a random string)
+6. Click "Add secret"
 
 ## License
 
