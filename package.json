@@ -16,7 +16,7 @@
     "electron:dev": "concurrently \"npm run dev\" \"npm run electron:start\"",
     "electron:start": "wait-on http://localhost:5173 && electron electron/main.cjs",
     "electron:prepare": "node electron/build.cjs",
-    "electron:build": "npm run build && npm run electron:prepare && electron-builder --no-sign",
+    "electron:build": "npm run build && npm run electron:prepare && electron-builder",
     "electron:make-icons": "node electron/make-icons.cjs"
   },
   "dependencies": {
@@ -66,7 +66,8 @@
     },
     "mac": {
       "target": "dir",
-      "icon": "electron/icons/icon.icns"
+      "icon": "electron/icons/icon.icns",
+      "identity": null
     },
     "win": {
       "target": "portable"
@@ -74,7 +75,7 @@
     "linux": {
       "target": "AppImage"
     },
-    "afterSign": "electron/notarize.js",
+    "afterSign": "electron/notarize.cjs",
     "forceCodeSigning": false
   }
 }
