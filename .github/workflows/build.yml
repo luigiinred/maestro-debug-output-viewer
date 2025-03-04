@@ -22,7 +22,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build Electron app
         run: npm run electron:build
@@ -33,6 +33,7 @@ jobs:
           name: macos-build
           path: |
             release/**/*.dmg
+            release/**/*.app
             release/**/*.zip
             release/**/*.yml
 
