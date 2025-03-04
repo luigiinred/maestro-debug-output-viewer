@@ -9,11 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: macos-latest
 
     steps:
       - name: Check out Git repository
@@ -26,7 +22,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build Electron app
         run: npm run electron:build
@@ -34,16 +30,10 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}-build
+          name: macos-build
           path: |
             release/**/*.dmg
-            release/**/*.exe
-            release/**/*.AppImage
-            release/**/*.snap
-            release/**/*.deb
-            release/**/*.rpm
             release/**/*.zip
-            release/**/*.tar.gz
             release/**/*.yml
 
   release:
