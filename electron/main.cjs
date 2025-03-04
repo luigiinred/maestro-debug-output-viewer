@@ -4,6 +4,12 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const os = require("os");
+const url = require("url");
+
+// Handle creating/removing shortcuts on Windows when installing/uninstalling
+if (require("electron-squirrel-startup")) {
+  app.quit();
+}
 
 // Keep a global reference of the window object to prevent garbage collection
 let mainWindow;
@@ -11,7 +17,9 @@ let mainWindow;
 // Start the Express server
 function startServer() {
   const server = express();
-  const port = 3001;
+  let port = process.env.PORT || 3001;
+  let maxPortAttempts = 10;
+  let serverStarted = false;
 
   server.use(cors());
   server.use(express.json());
@@ -155,11 +163,31 @@ function startServer() {
     }
   });
 
-  server.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-  });
+  // Try to start the server with port fallback
+  return new Promise((resolve, reject) => {
+    const attemptListen = (currentPort, attemptsLeft) => {
+      const serverInstance = server
+        .listen(currentPort, () => {
+          console.log(`Server running at http://localhost:${currentPort}`);
+          serverStarted = true;
+          resolve({ server: serverInstance, port: currentPort });
+        })
+        .on("error", (err) => {
+          if (err.code === "EADDRINUSE" && attemptsLeft > 0) {
+            console.log(
+              `Port ${currentPort} is in use, trying ${currentPort + 1}...`
+            );
+            attemptListen(currentPort + 1, attemptsLeft - 1);
+          } else {
+            console.error(`Failed to start server: ${err.message}`);
+            // Resolve with null server but don't reject - app can still function
+            resolve({ server: null, port: null });
+          }
+        });
+    };
 
-  return server;
+    attemptListen(port, maxPortAttempts);
+  });
 }
 
 // Helper function to find a flow directory
@@ -264,50 +292,104 @@ function findImagesInDirectory(directory) {
 
 function createWindow() {
   // Start the server
-  const server = startServer();
+  startServer().then(({ server, port }) => {
+    // Store the server and port in global variables if needed
+    global.expressServer = server;
+    global.serverPort = port;
 
-  // Create the browser window
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, "preload.cjs"),
-    },
-  });
-
-  // Load the app
-  const isDev = process.env.NODE_ENV === "development";
-
-  if (isDev) {
-    // In development, load from the dev server
-    mainWindow.loadURL("http://localhost:5173");
-    // Open DevTools
-    mainWindow.webContents.openDevTools();
-  } else {
-    // In production, load from the built files
-    const indexPath = path.join(__dirname, "../dist/index.html");
-    console.log(`Loading index.html from: ${indexPath}`);
-
-    if (fs.existsSync(indexPath)) {
-      mainWindow.loadFile(indexPath);
-    } else {
-      console.error(`Error: index.html not found at ${indexPath}`);
-      // Fallback to dev server if index.html not found
-      mainWindow.loadURL("http://localhost:5173");
+    // Set the port in the environment for the renderer process
+    if (port) {
+      process.env.API_PORT = port.toString();
     }
-  }
 
-  // Emitted when the window is closed
-  mainWindow.on("closed", () => {
-    mainWindow = null;
+    // Create the browser window
+    mainWindow = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, "preload.cjs"),
+      },
+    });
+
+    // Pass the port to the renderer process
+    if (port) {
+      mainWindow.serverPort = port;
+    }
+
+    // Load the app
+    const isDev = process.env.NODE_ENV === "development";
+
+    if (isDev) {
+      // In development, load from the dev server
+      mainWindow.loadURL("http://localhost:5173");
+      // Open DevTools
+      mainWindow.webContents.openDevTools();
+    } else {
+      // In production, try to load from the app.asar file
+      try {
+        // First, try to load from the app.asar file
+        const asarPath = path.join(
+          process.resourcesPath,
+          "app.asar",
+          "dist",
+          "index.html"
+        );
+        console.log(`Trying to load from app.asar: ${asarPath}`);
+        console.log(`File exists: ${fs.existsSync(asarPath)}`);
+
+        if (fs.existsSync(asarPath)) {
+          // Use file:// protocol with the correct format
+          const fileUrl = url.format({
+            pathname: asarPath,
+            protocol: "file:",
+            slashes: true,
+          });
+          console.log(`Loading URL: ${fileUrl}`);
+          mainWindow.loadFile(asarPath);
+        } else {
+          // Fallback to the dist directory
+          const indexPath = path.resolve(__dirname, "../dist/index.html");
+          console.log(`Falling back to: ${indexPath}`);
+          console.log(`File exists: ${fs.existsSync(indexPath)}`);
+
+          if (fs.existsSync(indexPath)) {
+            console.log(`Loading file: ${indexPath}`);
+            mainWindow.loadFile(indexPath);
+          } else {
+            console.error("Could not find index.html in any location");
+            mainWindow.loadURL(
+              `data:text/html,<html><body><h1>Error</h1><p>Could not find index.html</p></body></html>`
+            );
+          }
+        }
+
+        // Open DevTools in production for debugging
+        mainWindow.webContents.openDevTools();
+      } catch (error) {
+        console.error("Error loading app:", error);
+        mainWindow.loadURL(
+          `data:text/html,<html><body><h1>Error</h1><p>${error.message}</p></body></html>`
+        );
+      }
+    }
+
+    // Emitted when the window is closed
+    mainWindow.on("closed", () => {
+      mainWindow = null;
+    });
   });
 }
 
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
   createWindow();
+
+  // Set up IPC handler for getting the server port
+  ipcMain.handle("get-server-port", () => {
+    return global.serverPort || 3001;
+  });
 
   app.on("activate", () => {
     // On macOS it's common to re-create a window in the app when the

@@ -2,6 +2,7 @@ import { Box, Typography, ImageList, ImageListItem, Modal } from '@mui/material'
 import { useState, useEffect } from 'react';
 import { getCommandName } from '../../utils/commandUtils';
 import { CommandEntry } from '../../types/commandTypes';
+import { createApiUrl, getApiBaseUrl } from '../../utils/apiConfig';
 
 interface CommandImagesProps {
   command: CommandEntry;
@@ -18,6 +19,7 @@ export function CommandImages({ command, testDirectory }: CommandImagesProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [baseUrl, setBaseUrl] = useState<string>('');
 
   console.log('CommandImages - Component mounted/updated with props:', {
     command,
@@ -26,6 +28,15 @@ export function CommandImages({ command, testDirectory }: CommandImagesProps) {
     hasMetadata: !!command?.metadata,
     hasTimestamp: !!command?.metadata?.timestamp
   });
+
+  // Get the base URL once when the component mounts
+  useEffect(() => {
+    const getBaseUrl = async () => {
+      const url = await getApiBaseUrl();
+      setBaseUrl(url);
+    };
+    getBaseUrl();
+  }, []);
 
   useEffect(() => {
     const fetchImages = async () => {
@@ -48,10 +59,11 @@ export function CommandImages({ command, testDirectory }: CommandImagesProps) {
       }
 
       const commandName = getCommandName(command.command);
-      const url = `http://localhost:3001/api/command-images/${encodeURIComponent(commandName)}?` +
-                 `dir=${encodeURIComponent(testDirectory)}&` +
-                 `timestamp=${command.metadata.timestamp}`;
-      
+      const url = await createApiUrl(`/api/command-images/${encodeURIComponent(commandName)}`, {
+        dir: testDirectory,
+        timestamp: command.metadata.timestamp.toString()
+      });
+
       console.log('CommandImages - Fetching images from:', url);
 
       try {
@@ -112,13 +124,13 @@ export function CommandImages({ command, testDirectory }: CommandImagesProps) {
       </Typography>
       <ImageList sx={{ maxHeight: 300 }} cols={2} rowHeight={164}>
         {images.map((image, index) => (
-          <ImageListItem 
+          <ImageListItem
             key={image.path}
             onClick={() => setSelectedImage(image.url)}
             sx={{ cursor: 'pointer' }}
           >
             <img
-              src={`http://localhost:3001${image.url}`}
+              src={`${baseUrl}${image.url}`}
               alt={`Command execution ${index + 1}`}
               loading="lazy"
               style={{ objectFit: 'contain' }}
@@ -138,7 +150,7 @@ export function CommandImages({ command, testDirectory }: CommandImagesProps) {
       >
         <Box
           component="img"
-          src={selectedImage ? `http://localhost:3001${selectedImage}` : ''}
+          src={selectedImage ? `${baseUrl}${selectedImage}` : ''}
           alt="Command execution detail"
           sx={{
             maxWidth: '90vw',

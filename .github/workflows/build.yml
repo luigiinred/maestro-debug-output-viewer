@@ -24,18 +24,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Electron app
-        run: npm run electron:build
+      # Import Apple certificates for code signing
+      - name: Import Apple certificates
+        if: runner.os == 'macOS'
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          keychain-password: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+      - name: Build Vite app
+        run: npm run build
+
+      - name: Make Electron app with Forge
+        env:
+          # Set environment variables for notarization
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
+          # Set environment variable for code signing
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: npm run make
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-build
           path: |
-            release/**/*.dmg
-            release/**/*.app
-            release/**/*.zip
-            release/**/*.yml
+            out/make/**/*.dmg
+            out/make/**/*.zip
+            out/make/**/*.yml
 
   release:
     needs: build

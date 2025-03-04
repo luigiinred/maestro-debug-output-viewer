@@ -1,5 +1,6 @@
 import { Box, ImageList, ImageListItem, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { createFlowImagesUrl, createFileContentUrl } from '../../utils/apiConfig';
 
 interface FlowImage {
   path: string;
@@ -16,7 +17,7 @@ interface FlowImagesProps {
 
 function formatTimestamp(timestamp: number): string {
   if (!timestamp) return 'Unknown time';
-  
+
   const date = new Date(timestamp);
   const timeStr = new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
@@ -24,7 +25,7 @@ function formatTimestamp(timestamp: number): string {
     second: '2-digit',
     hour12: false,
   }).format(date);
-  
+
   // Add milliseconds manually
   const ms = date.getMilliseconds().toString().padStart(3, '0');
   return `${timeStr}.${ms}`;
@@ -33,26 +34,33 @@ function formatTimestamp(timestamp: number): string {
 export function FlowImages({ testId, directory, flowName }: FlowImagesProps) {
   const [images, setImages] = useState<FlowImage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const fetchImages = async () => {
       console.log('Fetching images with params:', { directory, flowName });
-      
+
       try {
-        const response = await fetch(
-          `http://localhost:3001/api/flow-images?directory=${encodeURIComponent(directory)}&flowName=${encodeURIComponent(flowName)}`
-        );
-        
+        const apiUrl = await createFlowImagesUrl(directory, flowName);
+        const response = await fetch(apiUrl);
+
         console.log('Response status:', response.status);
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch flow images');
         }
-        
+
         const data = await response.json();
         console.log('Received images:', data);
-        
+
         setImages(data.images);
+
+        // Pre-generate image URLs
+        const urls: Record<string, string> = {};
+        for (const image of data.images) {
+          urls[image.path] = await createFileContentUrl(image.path);
+        }
+        setImageUrls(urls);
       } catch (err) {
         console.error('Error fetching images:', err);
         setError(err instanceof Error ? err.message : 'Failed to load images');
@@ -90,7 +98,7 @@ export function FlowImages({ testId, directory, flowName }: FlowImagesProps) {
           <ImageListItem key={image.path}>
             <Box sx={{ position: 'relative' }}>
               <img
-                src={`http://localhost:3001/api/files/content?path=${encodeURIComponent(image.path)}`}
+                src={imageUrls[image.path] || ''}
                 alt={`Flow step ${index + 1}`}
                 loading="lazy"
                 style={{ maxWidth: '100%', height: 'auto' }}

@@ -2,6 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 
+// Get the API server port from environment variable or use default
+const apiPort = process.env.API_PORT || 3001;
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -9,7 +12,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:3001",
+        target: `http://localhost:${apiPort}`,
         changeOrigin: true,
       },
     },

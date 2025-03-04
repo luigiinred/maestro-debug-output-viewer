@@ -26,6 +26,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { getTestStatus, getFlowStatus } from '../utils/testStatusUtils';
 import { useNavigate } from 'react-router-dom';
+import { createDirectoryListUrl, createFileContentUrl } from '../utils/apiConfig';
 
 interface FileInfo {
   name: string;
@@ -62,12 +63,13 @@ export function TestExplorer({
 }: TestExplorerProps) {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
   const [currentPath, setCurrentPath] = useState<string>('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [testsPath, setTestsPath] = useState<string>('');
   const [isInTestRun, setIsInTestRun] = useState(false);
   const navigate = useNavigate();
-  
+
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -77,17 +79,18 @@ export function TestExplorer({
 
   const fetchFiles = async () => {
     try {
+      setLoading(true);
+      setError('');
+
       // First try to get the current directory from localStorage
       const testDir = localStorage.getItem('maestro-test-dir');
-      const apiUrl = testDir 
-        ? `http://localhost:3001/api/files?dir=${encodeURIComponent(testDir)}`
-        : 'http://localhost:3001/api/files';
+      const apiUrl = await createDirectoryListUrl(testDir || undefined);
+      const response = await fetch(apiUrl);
 
       console.log('Fetching files from:', apiUrl);
-      const response = await fetch(apiUrl);
       if (!response.ok) throw new Error('Failed to fetch files');
       const data: FileInfo[] = await response.json();
-      
+
       // Store the current path
       if (data.length > 0) {
         const dirPath = data[0].path.split('/').slice(0, -1).join('/');
@@ -105,7 +108,7 @@ export function TestExplorer({
       }
 
       // Check if we're in the tests directory by looking for timestamp-based directories
-      const hasTestRuns = data.some((file: FileInfo) => 
+      const hasTestRuns = data.some((file: FileInfo) =>
         file.type === 'directory' && /^\d{4}-\d{2}-\d{2}_\d{6}$/.test(file.name)
       );
       if (hasTestRuns) {
@@ -117,23 +120,25 @@ export function TestExplorer({
       }
 
       // Check for .maestro directory
-      const maestroDir = data.find(file => 
+      const maestroDir = data.find(file =>
         file.type === 'directory' && file.name === '.maestro'
       );
 
       if (maestroDir) {
         console.log('Found .maestro directory, looking for tests directory');
         // Look in .maestro directory
-        const maestroResponse = await fetch(`http://localhost:3001/api/files?dir=${encodeURIComponent(maestroDir.path)}`);
+        const maestroUrl = await createDirectoryListUrl(maestroDir.path);
+        const maestroResponse = await fetch(maestroUrl);
         if (maestroResponse.ok) {
           const maestroData = await maestroResponse.json();
-          const testsDir = maestroData.find((file: FileInfo) => 
+          const testsDir = maestroData.find((file: FileInfo) =>
             file.type === 'directory' && file.name === 'tests'
           );
-          
+
           if (testsDir) {
             console.log('Found tests directory, fetching test runs');
-            const testsResponse = await fetch(`http://localhost:3001/api/files?dir=${encodeURIComponent(testsDir.path)}`);
+            const testsUrl = await createDirectoryListUrl(testsDir.path);
+            const testsResponse = await fetch(testsUrl);
             if (testsResponse.ok) {
               const testsData = await testsResponse.json();
               setTestsPath(testsDir.path);
@@ -154,13 +159,15 @@ export function TestExplorer({
     } catch (error) {
       console.error('Error fetching files:', error);
       setError('Failed to fetch files');
+    } finally {
+      setLoading(false);
     }
   };
 
   const processTestRuns = (data: FileInfo[]) => {
     // Filter and sort test run directories
     const testRuns = data
-      .filter((file: FileInfo) => 
+      .filter((file: FileInfo) =>
         file.type === 'directory' && /^\d{4}-\d{2}-\d{2}_\d{6}$/.test(file.name)
       )
       .sort((a: FileInfo, b: FileInfo) => b.name.localeCompare(a.name));
@@ -175,15 +182,16 @@ export function TestExplorer({
     Promise.all(
       testRuns.map(async (testRun) => {
         try {
-          const response = await fetch(`http://localhost:3001/api/files?dir=${encodeURIComponent(testRun.path)}`);
+          const dirUrl = await createDirectoryListUrl(testRun.path);
+          const response = await fetch(dirUrl);
           if (!response.ok) throw new Error('Failed to fetch test run contents');
           const contents = await response.json();
-          
+
           // Get all command files
-          const commandFiles = contents.filter((f: FileInfo) => 
+          const commandFiles = contents.filter((f: FileInfo) =>
             f.name.startsWith('commands-') && f.name.endsWith('.json')
           );
-          
+
           const testCount = commandFiles.length;
           let failedCount = 0;
 
@@ -191,9 +199,8 @@ export function TestExplorer({
           await Promise.all(
             commandFiles.map(async (file: FileInfo) => {
               try {
-                const metadataResponse = await fetch(
-                  `http://localhost:3001/api/files/content?path=${encodeURIComponent(file.path)}`
-                );
+                const fileUrl = await createFileContentUrl(file.path);
+                const metadataResponse = await fetch(fileUrl);
                 if (metadataResponse.ok) {
                   const testData = await metadataResponse.json();
                   if (Array.isArray(testData) && testData.length > 0) {
@@ -208,7 +215,7 @@ export function TestExplorer({
               }
             })
           );
-          
+
           return {
             ...testRun,
             testCount,
@@ -222,7 +229,7 @@ export function TestExplorer({
     ).then(updatedTestRuns => {
       // Filter out test runs with 0 tests before setting the state
       const nonEmptyTestRuns = updatedTestRuns.filter(run => run.testCount && run.testCount > 0);
-      
+
       if (nonEmptyTestRuns.length === 0) {
         setError('No test runs with tests found in tests directory');
         setFiles([]);
@@ -234,41 +241,54 @@ export function TestExplorer({
   };
 
   const handleFileClick = async (file: FileInfo) => {
-    if (isInTestRun) {
+    if (selectedTest === file.path) {
+      // Already selected
+      return;
+    }
+
+    if (file.type === 'file') {
       onTestSelect(file.path);
       if (isSmallScreen) setDrawerOpen(false);
-    } else {
+    } else if (file.type === 'directory') {
       // Fetch contents of the test run directory
-      const response = await fetch(`http://localhost:3001/api/files?dir=${encodeURIComponent(file.path)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setCurrentPath(file.path);
-        setIsInTestRun(true);
-        processTestFiles(data);
+      try {
+        const dirUrl = await createDirectoryListUrl(file.path);
+        const response = await fetch(dirUrl);
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentPath(file.path);
+          setIsInTestRun(true);
+          processTestFiles(data);
+        }
+      } catch (error) {
+        console.error('Error fetching directory:', error);
       }
     }
   };
 
   const handleBackClick = () => {
     if (isInTestRun && testsPath) {
-      fetch(`http://localhost:3001/api/files?dir=${encodeURIComponent(testsPath)}`)
-        .then(response => response.json())
-        .then(data => {
-          setCurrentPath(testsPath);
-          setIsInTestRun(false);
-          processTestRuns(data);
-        })
-        .catch(error => {
-          console.error('Error going back:', error);
-          setError('Failed to go back to test runs');
-        });
+      // Use the API config utility for directory listing
+      createDirectoryListUrl(testsPath).then(apiUrl => {
+        fetch(apiUrl)
+          .then(response => response.json())
+          .then(data => {
+            setCurrentPath(testsPath);
+            setIsInTestRun(false);
+            processTestRuns(data);
+          })
+          .catch(error => {
+            console.error('Error fetching parent directory:', error);
+            setError('Failed to go back to test runs');
+          });
+      });
     }
   };
 
   const formatTestRunName = (name: string): string => {
     const match = name.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})$/);
     if (!match) return name;
-    
+
     const [_, year, month, day, hour, minute, second] = match;
     const date = new Date(
       parseInt(year),
@@ -278,7 +298,7 @@ export function TestExplorer({
       parseInt(minute),
       parseInt(second)
     );
-    
+
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: '2-digit',
@@ -303,20 +323,19 @@ export function TestExplorer({
       setFiles([]);
       return;
     }
-    
+
     // Fetch test metadata for command files
     Promise.all(
       filteredFiles.map(async (file) => {
         try {
-          const metadataResponse = await fetch(
-            `http://localhost:3001/api/files/content?path=${encodeURIComponent(file.path)}`
-          );
+          const fileUrl = await createFileContentUrl(file.path);
+          const metadataResponse = await fetch(fileUrl);
           if (metadataResponse.ok) {
             const testData = await metadataResponse.json();
-            
+
             if (Array.isArray(testData) && testData.length > 0) {
               const testStatus = getTestStatus(testData);
-              
+
               return {
                 ...file,
                 testStatus,
@@ -331,14 +350,14 @@ export function TestExplorer({
       })
     ).then(filesWithMetadata => {
       filteredFiles = filesWithMetadata as FileInfo[];
-      
+
       // Determine overall flow status
       const testStatuses = filteredFiles
         .map(file => file.testStatus)
         .filter((status): status is 'COMPLETED' | 'FAILED' => status !== undefined);
-      
+
       const flowStatus = getFlowStatus(testStatuses);
-      
+
       // Add flow status to each file
       filteredFiles = filteredFiles.map(file => ({
         ...file,
@@ -369,12 +388,12 @@ export function TestExplorer({
 
   const formatDuration = (duration: number): string => {
     if (!duration) return '';
-    
+
     const totalSeconds = Math.floor(duration / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
     const milliseconds = duration % 1000;
-    
+
     if (minutes > 0) {
       return `${minutes}m ${seconds}s`;
     } else if (seconds > 0) {
@@ -420,8 +439,8 @@ export function TestExplorer({
         <IconButton
           onClick={handleOpenSettings}
           size="small"
-          sx={{ 
-            border: 1, 
+          sx={{
+            border: 1,
             borderColor: 'divider',
             '&:hover': {
               backgroundColor: 'action.hover',
@@ -452,8 +471,8 @@ export function TestExplorer({
                 size="small"
                 label={files[0].flowStatus}
                 color={files[0].flowStatus === 'PASSED' ? 'success' : 'error'}
-                icon={files[0].flowStatus === 'PASSED' ? 
-                  <CheckCircleOutlineIcon fontSize="small" /> : 
+                icon={files[0].flowStatus === 'PASSED' ?
+                  <CheckCircleOutlineIcon fontSize="small" /> :
                   <ErrorOutlineIcon fontSize="small" />}
                 sx={{ height: 24 }}
               />
@@ -463,7 +482,7 @@ export function TestExplorer({
           <List dense sx={{ flexGrow: 1, overflow: 'auto' }}>
             {files.map((file) => (
               <ListItem key={file.path} disablePadding>
-                <ListItemButton 
+                <ListItemButton
                   onClick={() => handleFileClick(file)}
                   selected={file.path === selectedTest}
                   dense

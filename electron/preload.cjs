@@ -28,3 +28,9 @@ contextBridge.exposeInMainWorld("process", {
     NODE_ENV: process.env.NODE_ENV,
   },
 });
+
+// Expose the server port to the renderer process
+contextBridge.exposeInMainWorld("serverConfig", {
+  // Get the port from the main process via IPC
+  getServerPort: () => ipcRenderer.invoke("get-server-port"),
+});
