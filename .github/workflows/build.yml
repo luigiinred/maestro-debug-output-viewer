@@ -36,12 +36,18 @@ jobs:
       - name: Build Vite app
         run: npm run build
 
-      # Create necessary assets
+      # Create necessary assets and directories
+      - name: Create necessary directories
+        run: |
+          mkdir -p electron/build/resources
+          echo "This file ensures resources are present for code signing." > electron/build/resources/dummy.txt
+          mkdir -p assets
+
       - name: Create DMG background
-        run: node scripts/create-dmg-background.cjs
+        run: node scripts/create-dmg-background.cjs || echo "DMG background creation skipped"
 
       - name: Create app icons
-        run: node scripts/create-icons.cjs
+        run: node scripts/create-icons.cjs || echo "Icon creation skipped"
 
       # Make the scripts executable
       - name: Make scripts executable
@@ -49,7 +55,7 @@ jobs:
           chmod +x scripts/fix-code-signing.cjs
           chmod +x scripts/package-and-sign.cjs
 
-      # Package and sign the app
+      # Package and sign the app with verbose output
       - name: Package and sign the app
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -58,7 +64,19 @@ jobs:
           APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: npm run package:sign
+          DEBUG: electron-forge*,electron-osx-sign*
+        run: |
+          # Print environment for debugging (without secrets)
+          echo "Node version: $(node -v)"
+          echo "NPM version: $(npm -v)"
+          echo "Environment variables set: $(env | grep -v PASSWORD | grep -v CSC_LINK | grep -v SECRET)"
+
+          # Run the package-and-sign script
+          npm run package:sign
+
+      - name: List output files
+        run: |
+          find out -type f -name "*.dmg" -o -name "*.zip" | sort
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

@@ -1,0 +1,2 @@
+This file ensures resources are present for code signing.
+It is required to fix the error: "code has no resources but signature indicates they must be present". 

@@ -19,7 +19,7 @@ module.exports = {
       type: "distribution",
       platform: "darwin",
       "signature-flags": "library",
-      "signature-size": 9000,
+      "signature-size": 12000,
       ignore: [
         "/node_modules/.cache",
         "/node_modules/.bin",
@@ -30,6 +30,7 @@ module.exports = {
       ],
       preAutoEntitlements: false,
       binaries: [],
+      "resource-rules": path.resolve("electron/build/resource-rules.plist"),
     },
     osxNotarize:
       process.env.APPLE_ID &&
@@ -51,7 +52,27 @@ module.exports = {
         schemes: ["maestro-viewer"],
       },
     ],
-    extraResource: [path.resolve("assets")],
+    extraResource: [
+      path.resolve("assets"),
+      path.resolve("electron/build/dummy.txt"),
+    ],
+    afterCopy: [
+      (buildPath, electronVersion, platform, arch, callback) => {
+        const fs = require("fs");
+        const resourcesPath = path.join(buildPath, "Resources");
+
+        if (!fs.existsSync(resourcesPath)) {
+          fs.mkdirSync(resourcesPath, { recursive: true });
+        }
+
+        fs.writeFileSync(
+          path.join(resourcesPath, "dummy.txt"),
+          "This file ensures resources are present for code signing."
+        );
+
+        callback();
+      },
+    ],
   },
   rebuildConfig: {},
   makers: [
@@ -90,8 +111,6 @@ module.exports = {
       name: "@electron-forge/plugin-auto-unpack-natives",
       config: {},
     },
-    // Fuses are used to enable/disable various Electron functionality
-    // at package time, before code signing the application
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,

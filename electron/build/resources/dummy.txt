@@ -1,0 +1,1 @@
+This file ensures resources are present for code signing.

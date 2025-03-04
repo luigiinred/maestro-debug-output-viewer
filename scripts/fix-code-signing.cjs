@@ -3,6 +3,9 @@
 /**
  * This script helps fix code signing issues by ensuring all resources
  * are properly included in the app bundle.
+ *
+ * Specifically addresses the error:
+ * "code has no resources but signature indicates they must be present"
  */
 
 const fs = require("fs");
@@ -28,20 +31,29 @@ if (!fs.existsSync(appPath)) {
   process.exit(1);
 }
 
-// Create a dummy resource file if needed
+// Create Resources directory if it doesn't exist
 const resourcesPath = path.join(appPath, "Contents/Resources");
-const dummyResourcePath = path.join(resourcesPath, "dummy.txt");
-
 if (!fs.existsSync(resourcesPath)) {
   console.log(`Creating Resources directory: ${resourcesPath}`);
   fs.mkdirSync(resourcesPath, { recursive: true });
 }
 
+// Create multiple resource files to ensure resources are present
+const dummyResourcePath = path.join(resourcesPath, "dummy.txt");
 console.log(`Creating dummy resource file: ${dummyResourcePath}`);
 fs.writeFileSync(
   dummyResourcePath,
   "This file ensures resources are present for code signing."
 );
+
+// Create an empty .icns file if needed
+const icnsPath = path.join(resourcesPath, "empty.icns");
+if (!fs.existsSync(icnsPath)) {
+  console.log(`Creating empty .icns file: ${icnsPath}`);
+  // Create a minimal .icns file (16 bytes header)
+  const header = Buffer.from("icns\0\0\0\x10\0\0\0\0\0\0\0\0", "binary");
+  fs.writeFileSync(icnsPath, header);
+}
 
 // Copy the icon file if it exists
 const iconSource = path.resolve(__dirname, "../electron/icons/icon.icns");
@@ -52,9 +64,26 @@ if (fs.existsSync(iconSource)) {
   fs.copyFileSync(iconSource, iconDest);
 }
 
-// Fix Info.plist if needed
+// Create a minimal Info.plist if it doesn't exist
 const infoPlistPath = path.join(appPath, "Contents/Info.plist");
-if (fs.existsSync(infoPlistPath)) {
+if (!fs.existsSync(infoPlistPath)) {
+  console.log(`Creating minimal Info.plist: ${infoPlistPath}`);
+  const minimalPlist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.maestro.viewer</string>
+  <key>CFBundleName</key>
+  <string>Maestro Viewer</string>
+  <key>CFBundleDisplayName</key>
+  <string>Maestro Viewer</string>
+  <key>CFBundleIconFile</key>
+  <string>electron.icns</string>
+</dict>
+</plist>`;
+  fs.writeFileSync(infoPlistPath, minimalPlist);
+} else {
   console.log(`Checking Info.plist: ${infoPlistPath}`);
 
   try {
@@ -67,6 +96,7 @@ if (fs.existsSync(infoPlistPath)) {
       `/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${bundleId}" "${infoPlistPath}"`,
       `/usr/libexec/PlistBuddy -c "Set :CFBundleName ${appName}" "${infoPlistPath}"`,
       `/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName ${appName}" "${infoPlistPath}"`,
+      `/usr/libexec/PlistBuddy -c "Set :CFBundleIconFile electron.icns" "${infoPlistPath}"`,
     ];
 
     commands.forEach((cmd) => {
@@ -79,6 +109,13 @@ if (fs.existsSync(infoPlistPath)) {
   } catch (error) {
     console.error(`Error updating Info.plist: ${error.message}`);
   }
+}
+
+// Create a PkgInfo file if it doesn't exist
+const pkgInfoPath = path.join(appPath, "Contents/PkgInfo");
+if (!fs.existsSync(pkgInfoPath)) {
+  console.log(`Creating PkgInfo file: ${pkgInfoPath}`);
+  fs.writeFileSync(pkgInfoPath, "APPL????");
 }
 
 // Sign the app if we're not in GitHub Actions (GitHub Actions will handle signing separately)
