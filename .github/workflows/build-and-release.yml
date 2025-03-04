@@ -1,0 +1,104 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish
+        run: npm run publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Apple Developer credentials for code signing and notarization
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
+          # Code signing certificate
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+      - name: Get version
+        id: package_version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Build app
+        run: npm run make
+        env:
+          # Add any environment variables needed for building/signing
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # If you have code signing set up, uncomment and add these secrets in your GitHub repository
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.package_version.outputs.version }}
+          release_name: Release v${{ steps.package_version.outputs.version }}
+          draft: true
+          prerelease: false
+
+      - name: Upload DMG Artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./out/make/maestro-viewer-${{ steps.package_version.outputs.version }}-arm64.dmg
+          asset_name: maestro-viewer-${{ steps.package_version.outputs.version }}-arm64.dmg
+          asset_content_type: application/octet-stream
+
+      - name: List build artifacts
+        run: |
+          ls -la ./out/make
+          ls -la ./out/make/zip/darwin/arm64
+
+      - name: Find and upload ZIP artifacts
+        run: |
+          ZIP_FILE=$(find ./out/make/zip/darwin/arm64 -type f -name "*.zip" | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Found ZIP file: $ZIP_FILE"
+            echo "zip_path=$ZIP_FILE" >> $GITHUB_OUTPUT
+            echo "zip_name=$(basename $ZIP_FILE)" >> $GITHUB_OUTPUT
+          else
+            echo "No ZIP file found"
+            # Create a zip file from the app bundle
+            cd ./out/make/zip/darwin/arm64
+            zip -r maestro-viewer-${{ steps.package_version.outputs.version }}-arm64.zip .
+            echo "zip_path=./out/make/zip/darwin/arm64/maestro-viewer-${{ steps.package_version.outputs.version }}-arm64.zip" >> $GITHUB_OUTPUT
+            echo "zip_name=maestro-viewer-${{ steps.package_version.outputs.version }}-arm64.zip" >> $GITHUB_OUTPUT
+          fi
+        id: find_zip
+
+      - name: Upload ZIP Artifact
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.find_zip.outputs.zip_path }}
+          asset_name: ${{ steps.find_zip.outputs.zip_name }}
+          asset_content_type: application/zip
