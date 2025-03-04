@@ -1,0 +1,123 @@
+[
+  {
+    "command": {
+      "runFlowCommand": {
+        "commands": [
+          {
+            "command": {
+              "tapOnElement": {
+                "selector": {
+                  "textRegex": "Actual Button",
+                  "optional": false
+                },
+                "retryIfNoChange": true,
+                "waitUntilVisible": false,
+                "longPress": false,
+                "optional": false
+              }
+            },
+            "metadata": {
+              "status": "SKIPPED",
+              "timestamp": 1000,
+              "duration": 0
+            }
+          }
+        ],
+        "optional": false,
+        "sourceDescription": "test-flow.yml"
+      }
+    },
+    "metadata": {
+      "status": "COMPLETED",
+      "timestamp": 1000,
+      "duration": 500
+    }
+  },
+  {
+    "command": {
+      "tapOnElement": {
+        "selector": {
+          "textRegex": "Actual Button",
+          "optional": false
+        },
+        "retryIfNoChange": true,
+        "waitUntilVisible": false,
+        "longPress": false,
+        "optional": false
+      }
+    },
+    "metadata": {
+      "status": "COMPLETED",
+      "timestamp": 1500,
+      "duration": 100
+    }
+  },
+  {
+    "command": {
+      "runFlowCommand": {
+        "commands": [
+          {
+            "command": {
+              "runFlowCommand": {
+                "commands": [
+                  {
+                    "command": {
+                      "tapOnElement": {
+                        "selector": {
+                          "textRegex": "Actual Nested Button",
+                          "optional": false
+                        },
+                        "retryIfNoChange": true,
+                        "waitUntilVisible": false,
+                        "longPress": false,
+                        "optional": false
+                      }
+                    },
+                    "metadata": {
+                      "status": "SKIPPED",
+                      "timestamp": 2000,
+                      "duration": 0
+                    }
+                  }
+                ],
+                "optional": false,
+                "sourceDescription": "nested-flow.yml"
+              }
+            },
+            "metadata": {
+              "status": "COMPLETED",
+              "timestamp": 2000,
+              "duration": 300
+            }
+          }
+        ],
+        "optional": false,
+        "sourceDescription": "outer-flow.yml"
+      }
+    },
+    "metadata": {
+      "status": "COMPLETED",
+      "timestamp": 2000,
+      "duration": 500
+    }
+  },
+  {
+    "command": {
+      "tapOnElement": {
+        "selector": {
+          "textRegex": "Actual Nested Button",
+          "optional": false
+        },
+        "retryIfNoChange": true,
+        "waitUntilVisible": false,
+        "longPress": false,
+        "optional": false
+      }
+    },
+    "metadata": {
+      "status": "COMPLETED",
+      "timestamp": 2300,
+      "duration": 100
+    }
+  }
+] 

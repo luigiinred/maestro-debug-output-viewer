@@ -1,0 +1,40 @@
+[
+  {
+    "command": {
+      "tapOnElement": {
+        "selector": {
+          "textRegex": "Actual Button",
+          "optional": false
+        },
+        "retryIfNoChange": true,
+        "waitUntilVisible": false,
+        "longPress": false,
+        "optional": false
+      }
+    },
+    "metadata": {
+      "status": "COMPLETED",
+      "timestamp": 1500,
+      "duration": 100
+    }
+  },
+  {
+    "command": {
+      "tapOnElement": {
+        "selector": {
+          "textRegex": "Actual Nested Button",
+          "optional": false
+        },
+        "retryIfNoChange": true,
+        "waitUntilVisible": false,
+        "longPress": false,
+        "optional": false
+      }
+    },
+    "metadata": {
+      "status": "COMPLETED",
+      "timestamp": 2300,
+      "duration": 100
+    }
+  }
+] 
