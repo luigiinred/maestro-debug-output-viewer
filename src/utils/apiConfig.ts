@@ -43,6 +43,71 @@ export const createApiUrl = async (
   return url.toString();
 };
 
+/**
+ * Fetch with retry mechanism for handling transient errors
+ * @param url URL to fetch
+ * @param options Fetch options
+ * @param retries Number of retries (default: 3)
+ * @param delay Delay between retries in ms (default: 500)
+ * @returns Promise with the fetch response
+ */
+export const fetchWithRetry = async (
+  url: string,
+  options?: RequestInit,
+  retries = 3,
+  delay = 500
+): Promise<Response> => {
+  try {
+    const response = await fetch(url, options);
+
+    // If the request was successful, return the response
+    if (response.ok) {
+      return response;
+    }
+
+    // If we have no more retries, throw an error
+    if (retries <= 0) {
+      throw new Error(
+        `Failed to fetch ${url}: ${response.status} ${response.statusText}`
+      );
+    }
+
+    // If the error is a server error (5xx), retry
+    if (response.status >= 500) {
+      console.warn(
+        `Server error (${response.status}) when fetching ${url}, retrying... (${retries} retries left)`
+      );
+
+      // Wait for the specified delay
+      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      // Retry with one less retry
+      return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+    }
+
+    // For other errors, don't retry
+    throw new Error(
+      `Failed to fetch ${url}: ${response.status} ${response.statusText}`
+    );
+  } catch (error) {
+    // If we have no more retries, rethrow the error
+    if (retries <= 0) {
+      throw error;
+    }
+
+    console.warn(
+      `Error when fetching ${url}, retrying... (${retries} retries left):`,
+      error
+    );
+
+    // Wait for the specified delay
+    await new Promise((resolve) => setTimeout(resolve, delay));
+
+    // Retry with one less retry
+    return fetchWithRetry(url, options, retries - 1, delay * 1.5);
+  }
+};
+
 // Specific API endpoints
 export const createFileContentUrl = async (
   filePath: string
@@ -64,6 +129,12 @@ export const createFlowImagesUrl = async (
   flowName: string
 ): Promise<string> => {
   return createApiUrl("/api/flow-images", { directory, flowName });
+};
+
+export const createDeleteTestRunUrl = async (
+  testRunPath: string
+): Promise<string> => {
+  return createApiUrl("/api/test-run", { path: testRunPath });
 };
 
 // Add TypeScript interface for the window object

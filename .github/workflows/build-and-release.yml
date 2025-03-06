@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+# Add permissions needed for GitHub releases
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: macos-latest
@@ -22,33 +26,67 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and publish
-        run: npm run publish
+      - name: Get version
+        id: package_version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Create certificates directory
+        run: mkdir -p ~/certificates
+
+      - name: Decode signing certificate
+        if: ${{ env.CSC_LINK != '' }}
+        run: echo ${{ secrets.CSC_LINK }} | base64 --decode > ~/certificates/mac_certificate.p12
         env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+
+      - name: Build app
+        run: npm run package
+        env:
+          # Apple Developer credentials for code signing
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
+          # Code signing certificate
+          CSC_LINK: ~/certificates/mac_certificate.p12
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # GitHub token for publishing
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fix code signing
+        run: node scripts/fix-code-signing.cjs ./out/maestro-viewer-darwin-arm64/maestro-viewer.app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
+          GITHUB_ACTIONS: "true"
+
+      - name: Make distributable
+        run: npm run make
+        env:
           # Apple Developer credentials for code signing and notarization
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
           # Code signing certificate
-          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_LINK: ~/certificates/mac_certificate.p12
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-
-      - name: Get version
-        id: package_version
-        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: Build app
-        run: npm run make
-        env:
-          # Add any environment variables needed for building/signing
+          # GitHub token for publishing
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # If you have code signing set up, uncomment and add these secrets in your GitHub repository
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
+
+      - name: Publish to GitHub
+        run: npm run publish
+        env:
+          # Apple Developer credentials for code signing and notarization
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_TEAM_NAME: ${{ secrets.APPLE_TEAM_NAME }}
+          # Code signing certificate
+          CSC_LINK: ~/certificates/mac_certificate.p12
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # GitHub token for publishing
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         id: create_release
@@ -61,6 +99,11 @@ jobs:
           draft: true
           prerelease: false
 
+      - name: List build artifacts
+        run: |
+          ls -la ./out/make
+          find ./out/make -type f -name "*.dmg" -o -name "*.zip"
+
       - name: Upload DMG Artifact
         uses: actions/upload-release-asset@v1
         env:
@@ -70,11 +113,6 @@ jobs:
           asset_path: ./out/make/maestro-viewer-${{ steps.package_version.outputs.version }}-arm64.dmg
           asset_name: maestro-viewer-${{ steps.package_version.outputs.version }}-arm64.dmg
           asset_content_type: application/octet-stream
-
-      - name: List build artifacts
-        run: |
-          ls -la ./out/make
-          ls -la ./out/make/zip/darwin/arm64
 
       - name: Find and upload ZIP artifacts
         run: |

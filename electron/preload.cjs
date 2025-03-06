@@ -33,4 +33,9 @@ contextBridge.exposeInMainWorld("process", {
 contextBridge.exposeInMainWorld("serverConfig", {
   // Get the port from the main process via IPC
   getServerPort: () => ipcRenderer.invoke("get-server-port"),
+  // Get the WebSocket port from the main process via IPC
+  getWsPort: () => ipcRenderer.invoke("get-ws-port"),
+  // Watch a directory for changes
+  watchDirectory: (directory) =>
+    ipcRenderer.invoke("watch-directory", directory),
 });

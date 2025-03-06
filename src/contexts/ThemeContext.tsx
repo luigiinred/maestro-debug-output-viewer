@@ -20,7 +20,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const getSavedTheme = (): ThemeMode => {
     const savedTheme = localStorage.getItem('themeMode') as ThemeMode;
     if (savedTheme) return savedTheme;
-    
+
     // Use system preference as fallback
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       return 'dark';
@@ -51,6 +51,20 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
           paper: {
             backgroundColor: mode === 'light' ? '#f5f5f5' : '#121212',
             borderRight: 'none',
+          },
+        },
+      },
+      MuiIconButton: {
+        styleOverrides: {
+          root: {
+            '&:focus': {
+              outline: 'none',
+              boxShadow: 'none',
+            },
+            '&.Mui-focusVisible': {
+              outline: 'none',
+              boxShadow: 'none',
+            },
           },
         },
       },

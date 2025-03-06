@@ -15,8 +15,8 @@ import { getCommandName, getCommandDetails, formatTimestamp } from '../../../uti
 
 // Common placeholder component for consistent timestamp alignment
 export const TimestampPlaceholder = () => (
-  <Box 
-    sx={{ 
+  <Box
+    sx={{
       ml: 1,
       width: 24, // Fixed width for consistent alignment
       height: 24, // Fixed height for consistent alignment
@@ -36,26 +36,26 @@ export interface BaseCommandItemProps {
   renderAfterTimestamp?: React.ReactNode;
 }
 
-export const BaseCommandItem = ({ 
-  commandEntry, 
-  index, 
+export const BaseCommandItem = ({
+  commandEntry,
+  index,
   startTime,
   onSelect,
   isSelected,
   getCommandTypeColor: customGetCommandTypeColor,
   renderAfterTimestamp = <TimestampPlaceholder /> // Default placeholder for consistent alignment
-}: BaseCommandItemProps) => {  
+}: BaseCommandItemProps) => {
   const theme = useTheme();
   const location = useLocation();
   const commandName = getCommandName(commandEntry.command);
   const commandDetails = getCommandDetails(commandEntry.command);
-  const isOptional = commandEntry.command && typeof commandEntry.command === 'object' 
-    ? Object.values(commandEntry.command)[0]?.optional 
+  const isOptional = commandEntry.command && typeof commandEntry.command === 'object'
+    ? Object.values(commandEntry.command)[0]?.optional
     : false;
   const isSkipped = commandEntry.metadata?.status === 'SKIPPED';
   const isFailed = commandEntry.metadata?.status === 'FAILED';
   const errorMessage = commandEntry.metadata?.error?.message;
-  
+
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -67,10 +67,10 @@ export const BaseCommandItem = ({
     if (isFailed && commandEntry.metadata?.timestamp && testDirectory && commandName) {
       // Reset states
       setScreenshotUrl(null);
-      
+
       // Construct the URL for the screenshot
       const url = `/api/screenshot?directory=${encodeURIComponent(testDirectory)}&timestamp=${commandEntry.metadata.timestamp}&commandName=${encodeURIComponent(commandName)}`;
-      
+
       // Check if the screenshot exists
       fetch(url, { method: 'HEAD' })
         .then(response => {
@@ -87,7 +87,7 @@ export const BaseCommandItem = ({
   const handleSelect = () => {
     onSelect(commandEntry);
   };
-  
+
   const handleOpenModal = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering the command selection
     setIsModalOpen(true);
@@ -96,10 +96,10 @@ export const BaseCommandItem = ({
   const handleCloseModal = () => {
     setIsModalOpen(false);
   };
-  
+
   const getStatusColor = () => {
     if (!commandEntry.metadata) return theme.palette.text.disabled; // Default to disabled text color
-    
+
     switch (commandEntry.metadata.status) {
       case 'COMPLETED':
         return theme.palette.success.main;  // Green
@@ -111,10 +111,10 @@ export const BaseCommandItem = ({
         return theme.palette.text.disabled;  // Disabled text color
     }
   };
-  
+
   const getStatusIcon = () => {
     if (!commandEntry.metadata) return '•'; // Default icon if metadata is missing
-    
+
     switch (commandEntry.metadata.status) {
       case 'COMPLETED':
         return '✓';
@@ -126,13 +126,13 @@ export const BaseCommandItem = ({
         return '•';
     }
   };
-  
+
   // Get command type color - can be overridden by specific command types
   const getCommandTypeColor = () => {
     if (customGetCommandTypeColor) {
       return customGetCommandTypeColor();
     }
-    
+
     // Default color handling
     const isRunFlowCommand = !!commandEntry.command.runFlowCommand;
     const isApplyConfigCommand = !!commandEntry.command.applyConfigurationCommand;
@@ -143,7 +143,7 @@ export const BaseCommandItem = ({
     const isLaunchAppCommand = !!commandEntry.command.launchAppCommand;
     const isStopAppCommand = !!commandEntry.command.stopAppCommand;
     const isDefineVariablesCommand = !!commandEntry.command.defineVariablesCommand;
-    
+
     if (isRunFlowCommand) return '#3f51b5'; // Indigo for Run Flow
     if (isApplyConfigCommand) return '#9c27b0'; // Purple for Apply Config
     if (isTapCommand) return '#2196f3'; // Blue for Tap
@@ -158,31 +158,32 @@ export const BaseCommandItem = ({
 
   return (
     <Box sx={{ mb: 0 }}>
-      <Box 
-        sx={{ 
-          display: 'flex', 
+      <Box
+        sx={{
+          display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           px: 1,
           py: 0.5,
-          backgroundColor: isSelected 
+          backgroundColor: isSelected
             ? alpha(theme.palette.primary.main, 0.12)
             : 'transparent',
           '&:hover': {
-            backgroundColor: isSelected 
-              ? alpha(theme.palette.primary.main, 0.18) 
+            backgroundColor: isSelected
+              ? alpha(theme.palette.primary.main, 0.18)
               : alpha(theme.palette.action.hover, 0.04),
           },
           cursor: 'pointer',
           opacity: isSkipped ? 0.75 : 1,
           textDecoration: isSkipped ? 'line-through' : 'none',
+          borderRadius: 1,
         }}
         onClick={handleSelect}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
           {/* Status icon */}
-          <Box 
-            sx={{ 
+          <Box
+            sx={{
               color: getStatusColor(),
               mr: 1.5,
               fontSize: '1rem',
@@ -193,49 +194,57 @@ export const BaseCommandItem = ({
           >
             {getStatusIcon()}
           </Box>
-          
+
           {/* Command name and details */}
-          <Typography 
-            variant="body2" 
-            sx={{ 
+          <Box
+            sx={{
               flexGrow: 1,
-              whiteSpace: 'nowrap',
+              display: 'flex',
               overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              fontSize: '0.85rem',
-              fontFamily: 'monospace',
               mr: 2,
-              color: commandEntry.metadata?.status === 'FAILED' ? theme.palette.error.main : 'inherit',
+              minWidth: 0, // This is crucial for proper text truncation
             }}
           >
-            <span style={{ fontWeight: 500 }}>{commandName}</span>
-            {' '}
-            <span style={{ opacity: 0.7 }}>{commandDetails}</span>
-            {isOptional && <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: 4 }}>(Optional)</span>}
+            <Typography
+              variant="body2"
+              sx={{
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontSize: '0.85rem',
+                fontFamily: 'monospace',
+                color: commandEntry.metadata?.status === 'FAILED' ? theme.palette.error.main : 'inherit',
+                width: '100%', // Take full width of parent
+              }}
+            >
+              <span style={{ fontWeight: 500 }}>{commandName}</span>
+              {' '}
+              <span style={{ opacity: 0.7 }}>{commandDetails}</span>
+              {isOptional && <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: 4 }}>(Optional)</span>}
+            </Typography>
+          </Box>
 
-          </Typography>
-          
           {/* Timestamp and optional content after timestamp */}
-          <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
-            <Typography 
-              variant="caption" 
+          <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto', flexShrink: 0 }}>
+            <Typography
+              variant="caption"
               color="text.secondary"
-              sx={{ 
-                fontSize: '0.75rem', 
+              sx={{
+                fontSize: '0.75rem',
                 whiteSpace: 'nowrap',
                 fontFamily: 'monospace'
               }}
             >
               {formatTimestamp(commandEntry.metadata?.timestamp, index, startTime)}
             </Typography>
-            
+
             {renderAfterTimestamp}
-            
+
             {/* Screenshot thumbnail for failed tests */}
             {isFailed && screenshotUrl && (
               <Tooltip title="View screenshot">
-                <Box 
-                  sx={{ 
+                <Box
+                  sx={{
                     ml: 1,
                     width: 24,
                     height: 24,
@@ -247,14 +256,14 @@ export const BaseCommandItem = ({
                   }}
                   onClick={handleOpenModal}
                 >
-                  <img 
-                    src={screenshotUrl} 
-                    alt="Failure Screenshot" 
-                    style={{ 
-                      width: '100%', 
+                  <img
+                    src={screenshotUrl}
+                    alt="Failure Screenshot"
+                    style={{
+                      width: '100%',
                       height: '100%',
                       objectFit: 'cover',
-                    }} 
+                    }}
                   />
                 </Box>
               </Tooltip>
@@ -262,9 +271,9 @@ export const BaseCommandItem = ({
           </Box>
         </Box>
       </Box>
-      
-      
-      
+
+
+
       {/* Modal for displaying larger screenshot */}
       <Modal
         open={isModalOpen}
@@ -289,21 +298,21 @@ export const BaseCommandItem = ({
           <Typography id="screenshot-modal" variant="h6" component="h2" sx={{ mb: 2 }}>
             Failure Screenshot: {commandName}
           </Typography>
-          <Box sx={{ 
+          <Box sx={{
             overflow: 'auto',
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
           }}>
             {screenshotUrl && (
-              <img 
-                src={screenshotUrl} 
-                alt="Failure Screenshot" 
-                style={{ 
+              <img
+                src={screenshotUrl}
+                alt="Failure Screenshot"
+                style={{
                   maxWidth: '100%',
                   maxHeight: 'calc(90vh - 80px)',
                   objectFit: 'contain',
-                }} 
+                }}
               />
             )}
           </Box>

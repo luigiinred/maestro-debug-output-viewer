@@ -25,8 +25,11 @@ exports.default = async function notarizing(context) {
 
   console.log("Notarizing macOS app...");
 
-  const appBundleId = context.packager.appInfo.info._configuration.appId;
-  const appName = context.packager.appInfo.info._configuration.productName;
+  const appBundleId =
+    context.packager.appInfo.info._configuration.appId || "com.maestro.viewer";
+  const appName =
+    context.packager.appInfo.info._configuration.productName ||
+    context.packager.appInfo.name;
   const appPath = path.join(context.appOutDir, `${appName}.app`);
 
   console.log(`App path: ${appPath}`);
@@ -34,8 +37,9 @@ exports.default = async function notarizing(context) {
   console.log(`Team ID: ${process.env.APPLE_TEAM_ID}`);
 
   try {
-    // Notarize the app
+    // Notarize the app using notarytool (recommended by Apple)
     await notarize({
+      tool: "notarytool",
       appBundleId,
       appPath,
       appleId: process.env.APPLE_ID,
@@ -44,6 +48,12 @@ exports.default = async function notarizing(context) {
     });
 
     console.log(`Successfully notarized ${appName}`);
+
+    // Staple the notarization ticket to the app
+    const { execSync } = require("child_process");
+    console.log(`Stapling notarization ticket to ${appPath}`);
+    execSync(`xcrun stapler staple "${appPath}"`);
+    console.log(`Successfully stapled notarization ticket to ${appName}`);
   } catch (error) {
     console.error("Notarization failed:", error);
 

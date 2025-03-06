@@ -5,6 +5,8 @@ const cors = require("cors");
 const fs = require("fs");
 const os = require("os");
 const url = require("url");
+const WebSocket = require("ws");
+const chokidar = require("chokidar");
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
 if (require("electron-squirrel-startup")) {
@@ -13,6 +15,10 @@ if (require("electron-squirrel-startup")) {
 
 // Keep a global reference of the window object to prevent garbage collection
 let mainWindow;
+// Keep a reference to the WebSocket server
+let wss;
+// Keep a reference to the file watcher
+let watcher;
 
 // Start the Express server
 function startServer() {
@@ -33,31 +39,61 @@ function startServer() {
         return res.status(400).json({ error: "Directory path not specified" });
       }
 
-      const files = fs.readdirSync(dirPath, { withFileTypes: true });
-      const fileInfos = files.map((file) => {
-        const filePath = path.join(dirPath, file.name);
+      console.log(`Fetching files from directory: ${dirPath}`);
+
+      // Check if the directory exists
+      if (!fs.existsSync(dirPath)) {
+        console.log(`Directory not found: ${dirPath}`);
+        return res.status(404).json({ error: "Directory not found" });
+      }
+
+      // Try to read the directory with more detailed error handling
+      let dirEntries;
+      try {
+        dirEntries = fs.readdirSync(dirPath, { withFileTypes: true });
+      } catch (readError) {
+        console.error(`Error reading directory ${dirPath}:`, readError);
+        return res.status(500).json({
+          error: `Failed to read directory: ${readError.message}`,
+          code: readError.code,
+        });
+      }
+
+      const fileInfos = [];
+
+      // Process each file with individual error handling
+      for (const file of dirEntries) {
         try {
+          const filePath = path.join(dirPath, file.name);
           const stats = fs.statSync(filePath);
-          return {
+          fileInfos.push({
             name: file.name,
             path: filePath,
             type: file.isDirectory() ? "directory" : "file",
             size: stats.size,
             modifiedTime: stats.mtime.toISOString(),
-          };
-        } catch (error) {
-          return {
+          });
+        } catch (fileError) {
+          console.error(`Error processing file ${file.name}:`, fileError);
+          // Add the file with error information instead of skipping it
+          fileInfos.push({
             name: file.name,
-            path: filePath,
+            path: path.join(dirPath, file.name),
             type: "unknown",
-            error: error.message,
-          };
+            error: fileError.message,
+            code: fileError.code,
+          });
         }
-      });
+      }
 
       res.json(fileInfos);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error(`Global error in /api/files endpoint:`, error);
+      res.status(500).json({
+        error: error.message,
+        code: error.code,
+        stack: error.stack,
+      });
     }
   });
 
@@ -97,6 +133,49 @@ function startServer() {
     }
   });
 
+  // Add endpoint for watching a directory
+  server.post("/api/watch-directory", (req, res) => {
+    try {
+      const { directory } = req.body;
+
+      if (!directory) {
+        return res.status(400).json({ error: "Directory path not specified" });
+      }
+
+      // Check if the directory exists
+      if (!fs.existsSync(directory)) {
+        return res.status(404).json({ error: "Directory not found" });
+      }
+
+      // Look for .maestro/tests directory
+      let testsDir = directory;
+      if (!directory.endsWith(".maestro/tests")) {
+        const maestroTestsPath = path.join(directory, ".maestro", "tests");
+        if (fs.existsSync(maestroTestsPath)) {
+          testsDir = maestroTestsPath;
+        } else {
+          return res.status(404).json({
+            error: "No .maestro/tests directory found in the specified path",
+          });
+        }
+      }
+
+      // Set up a watcher for the .maestro/tests directory
+      setupWatcher(testsDir);
+
+      res.json({
+        success: true,
+        message: "Now watching for changes in " + testsDir,
+        watchingDirectory: testsDir,
+      });
+    } catch (error) {
+      console.error("Error setting up directory watch:", error);
+      res.status(500).json({
+        error: "Failed to set up directory watch: " + error.message,
+      });
+    }
+  });
+
   // Add endpoint for flow images
   server.get("/api/flow-images", (req, res) => {
     try {
@@ -112,17 +191,31 @@ function startServer() {
         return res.status(404).json({ error: "Directory not found" });
       }
 
-      // Find the flow directory - it might be in a subdirectory
-      const flowDir = findFlowDirectory(directory, flowName);
+      // Read all image files in the directory
+      const allImages = findAllImagesInDirectory(directory);
 
-      if (!flowDir) {
-        return res.status(404).json({ error: "Flow directory not found" });
-      }
+      // Filter images that match the flow name in parentheses
+      const decodedFlowName = decodeURIComponent(flowName);
+      console.log(`Looking for images with flow name: "${decodedFlowName}"`);
 
-      // Look for images in the flow directory
-      const images = findImagesInDirectory(flowDir);
+      const matchingImages = allImages.filter((image) => {
+        // Extract the flow name from the filename (assuming format includes flow name in parentheses)
+        const flowNameMatch = image.name.match(/\(([^)]+)\)/);
+        const imageFlowName = flowNameMatch ? flowNameMatch[1] : "";
 
-      res.json({ images });
+        const matches = imageFlowName === decodedFlowName;
+        console.log(
+          `Image: ${image.name}, Flow name: "${imageFlowName}", Matches: ${matches}`
+        );
+
+        return matches;
+      });
+
+      console.log(
+        `Found ${matchingImages.length} matching images out of ${allImages.length} total images`
+      );
+
+      res.json({ images: matchingImages });
     } catch (error) {
       console.error("Error fetching flow images:", error);
       res
@@ -163,6 +256,48 @@ function startServer() {
     }
   });
 
+  // Add endpoint for deleting test runs
+  server.delete("/api/test-run", (req, res) => {
+    try {
+      const testRunPath = req.query.path;
+
+      if (!testRunPath) {
+        return res.status(400).json({ error: "Test run path not specified" });
+      }
+
+      // Check if the directory exists
+      if (!fs.existsSync(testRunPath)) {
+        return res.status(404).json({ error: "Test run directory not found" });
+      }
+
+      // Recursively delete the directory
+      const deleteDirectory = (dirPath) => {
+        if (fs.existsSync(dirPath)) {
+          fs.readdirSync(dirPath).forEach((file) => {
+            const curPath = path.join(dirPath, file);
+            if (fs.lstatSync(curPath).isDirectory()) {
+              // Recursive call for directories
+              deleteDirectory(curPath);
+            } else {
+              // Delete file
+              fs.unlinkSync(curPath);
+            }
+          });
+          // Delete the empty directory
+          fs.rmdirSync(dirPath);
+        }
+      };
+
+      deleteDirectory(testRunPath);
+      res.json({ success: true, message: "Test run deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting test run:", error);
+      res
+        .status(500)
+        .json({ error: "Failed to delete test run: " + error.message });
+    }
+  });
+
   // Try to start the server with port fallback
   return new Promise((resolve, reject) => {
     const attemptListen = (currentPort, attemptsLeft) => {
@@ -170,6 +305,59 @@ function startServer() {
         .listen(currentPort, () => {
           console.log(`Server running at http://localhost:${currentPort}`);
           serverStarted = true;
+
+          // Set up WebSocket server
+          wss = new WebSocket.Server({ server: serverInstance });
+
+          console.log("WebSocket server initialized");
+
+          // Handle WebSocket connections
+          wss.on("connection", (ws) => {
+            console.log("WebSocket client connected");
+
+            // Send a welcome message
+            ws.send(
+              JSON.stringify({
+                type: "connection",
+                message:
+                  "Connected to Maestro Debug Output Viewer WebSocket server",
+              })
+            );
+
+            // Handle WebSocket messages from clients
+            ws.on("message", (message) => {
+              try {
+                const data = JSON.parse(message);
+                console.log("Received message:", data);
+
+                // Handle different message types
+                if (data.type === "watch" && data.directory) {
+                  setupWatcher(data.directory);
+                  ws.send(
+                    JSON.stringify({
+                      type: "watch-response",
+                      success: true,
+                      message: `Now watching ${data.directory}`,
+                    })
+                  );
+                }
+              } catch (error) {
+                console.error("Error handling WebSocket message:", error);
+                ws.send(
+                  JSON.stringify({
+                    type: "error",
+                    message: "Error processing message",
+                  })
+                );
+              }
+            });
+
+            // Handle WebSocket disconnections
+            ws.on("close", () => {
+              console.log("WebSocket client disconnected");
+            });
+          });
+
           resolve({ server: serverInstance, port: currentPort });
         })
         .on("error", (err) => {
@@ -190,47 +378,105 @@ function startServer() {
   });
 }
 
-// Helper function to find a flow directory
-function findFlowDirectory(baseDir, flowName) {
-  // First, check if there's a direct match in the base directory
-  const files = fs.readdirSync(baseDir, { withFileTypes: true });
-
-  // Look for directories that might contain the flow name
-  for (const file of files) {
-    if (file.isDirectory()) {
-      const dirPath = path.join(baseDir, file.name);
-
-      // Check if this directory contains the flow name
-      if (file.name.includes(flowName) || dirPath.includes(flowName)) {
-        return dirPath;
-      }
-
-      // Check subdirectories (one level deep)
+// Function to set up a file watcher for the specified directory
+function setupWatcher(directoryPath) {
+  try {
+    // Close any existing watcher
+    if (watcher) {
       try {
-        const subFiles = fs.readdirSync(dirPath, { withFileTypes: true });
-        for (const subFile of subFiles) {
-          if (subFile.isDirectory()) {
-            const subDirPath = path.join(dirPath, subFile.name);
-            if (
-              subFile.name.includes(flowName) ||
-              subDirPath.includes(flowName)
-            ) {
-              return subDirPath;
-            }
-          }
-        }
-      } catch (error) {
-        console.error(`Error reading subdirectory ${dirPath}:`, error);
+        watcher.close();
+        console.log("Closed existing watcher");
+      } catch (closeError) {
+        console.error("Error closing existing watcher:", closeError);
       }
     }
-  }
 
-  // If no specific flow directory is found, return the base directory
-  return baseDir;
+    console.log(`Setting up watcher for ${directoryPath}`);
+
+    // Verify the directory exists and is accessible
+    if (!fs.existsSync(directoryPath)) {
+      console.error(`Directory does not exist: ${directoryPath}`);
+      return null;
+    }
+
+    try {
+      // Test if we can read the directory
+      fs.accessSync(directoryPath, fs.constants.R_OK);
+    } catch (accessError) {
+      console.error(`Cannot access directory ${directoryPath}:`, accessError);
+      return null;
+    }
+
+    // Initialize the watcher with appropriate options
+    watcher = chokidar.watch(directoryPath, {
+      persistent: true,
+      ignoreInitial: true,
+      depth: 4, // Watch subdirectories up to 4 levels deep
+      awaitWriteFinish: {
+        stabilityThreshold: 2000,
+        pollInterval: 100,
+      },
+      disableGlobbing: true, // Disable globbing to prevent pattern matching issues
+      usePolling: true, // Use polling for more reliable watching across platforms
+    });
+
+    // Log what's being watched
+    watcher.on("ready", () => {
+      const watchedPaths = watcher.getWatched();
+      console.log("Initial scan complete. Watching for changes...");
+      console.log("Watched paths:", Object.keys(watchedPaths).length);
+    });
+
+    // Handle file/directory events
+    watcher.on("all", (event, path) => {
+      console.log(`${event} detected on ${path}`);
+
+      // Broadcast the change to all connected WebSocket clients
+      if (wss && wss.clients) {
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(
+              JSON.stringify({
+                type: "change",
+                event: event,
+                path: path,
+                timestamp: new Date().toISOString(),
+              })
+            );
+          }
+        });
+      }
+    });
+
+    // Handle watcher errors
+    watcher.on("error", (error) => {
+      console.error(`Watcher error: ${error}`);
+
+      // Notify clients about the error
+      if (wss && wss.clients) {
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(
+              JSON.stringify({
+                type: "error",
+                message: `Watcher error: ${error.message}`,
+                timestamp: new Date().toISOString(),
+              })
+            );
+          }
+        });
+      }
+    });
+
+    return watcher;
+  } catch (error) {
+    console.error(`Error setting up watcher for ${directoryPath}:`, error);
+    return null;
+  }
 }
 
-// Helper function to find images in a directory
-function findImagesInDirectory(directory) {
+// Helper function to find all images in a directory (including subdirectories)
+function findAllImagesInDirectory(directory) {
   const images = [];
 
   try {
@@ -248,38 +494,27 @@ function findImagesInDirectory(directory) {
       }
     }
 
-    // Then, look for subdirectories that might contain images (like "screenshots")
+    // Then, look for subdirectories that might contain images
     for (const file of files) {
       if (file.isDirectory()) {
         const subDirPath = path.join(directory, file.name);
-
-        // Check if this is a screenshots directory
-        if (
-          file.name.toLowerCase().includes("screenshot") ||
-          file.name.toLowerCase().includes("image")
-        ) {
-          try {
-            const subFiles = fs.readdirSync(subDirPath, {
-              withFileTypes: true,
-            });
-            for (const subFile of subFiles) {
-              if (
-                subFile.isFile() &&
-                /\.(png|jpg|jpeg|gif)$/i.test(subFile.name)
-              ) {
-                const imagePath = path.join(subDirPath, subFile.name);
-                images.push({
-                  name: subFile.name,
-                  path: imagePath,
-                  url: `/api/files/content?path=${encodeURIComponent(
-                    imagePath
-                  )}`,
-                });
-              }
+        try {
+          const subFiles = fs.readdirSync(subDirPath, { withFileTypes: true });
+          for (const subFile of subFiles) {
+            if (
+              subFile.isFile() &&
+              /\.(png|jpg|jpeg|gif)$/i.test(subFile.name)
+            ) {
+              const imagePath = path.join(subDirPath, subFile.name);
+              images.push({
+                name: subFile.name,
+                path: imagePath,
+                url: `/api/files/content?path=${encodeURIComponent(imagePath)}`,
+              });
             }
-          } catch (error) {
-            console.error(`Error reading subdirectory ${subDirPath}:`, error);
           }
+        } catch (error) {
+          console.error(`Error reading subdirectory ${subDirPath}:`, error);
         }
       }
     }
@@ -296,6 +531,7 @@ function createWindow() {
     // Store the server and port in global variables if needed
     global.expressServer = server;
     global.serverPort = port;
+    global.wsPort = port; // WebSocket uses the same port as the HTTP server
 
     // Set the port in the environment for the renderer process
     if (port) {
@@ -319,44 +555,40 @@ function createWindow() {
     }
 
     // Load the app
-    const isDev = process.env.NODE_ENV === "development";
+    const isDev =
+      process.env.NODE_ENV === "development" ||
+      process.env.ELECTRON_IS_DEV === "1";
+    console.log(`Running in ${isDev ? "development" : "production"} mode`);
 
     if (isDev) {
       // In development, load from the dev server
+      console.log("Loading from dev server at http://localhost:5173");
       mainWindow.loadURL("http://localhost:5173");
       // Open DevTools
       mainWindow.webContents.openDevTools();
     } else {
-      // In production, try to load from the app.asar file
+      // In production, try to load from the dist directory first
       try {
-        // First, try to load from the app.asar file
-        const asarPath = path.join(
-          process.resourcesPath,
-          "app.asar",
-          "dist",
-          "index.html"
-        );
-        console.log(`Trying to load from app.asar: ${asarPath}`);
-        console.log(`File exists: ${fs.existsSync(asarPath)}`);
+        const indexPath = path.resolve(__dirname, "../dist/index.html");
+        console.log(`Trying to load from dist directory: ${indexPath}`);
 
-        if (fs.existsSync(asarPath)) {
-          // Use file:// protocol with the correct format
-          const fileUrl = url.format({
-            pathname: asarPath,
-            protocol: "file:",
-            slashes: true,
-          });
-          console.log(`Loading URL: ${fileUrl}`);
-          mainWindow.loadFile(asarPath);
+        if (fs.existsSync(indexPath)) {
+          console.log(`Loading file: ${indexPath}`);
+          mainWindow.loadFile(indexPath);
         } else {
-          // Fallback to the dist directory
-          const indexPath = path.resolve(__dirname, "../dist/index.html");
-          console.log(`Falling back to: ${indexPath}`);
-          console.log(`File exists: ${fs.existsSync(indexPath)}`);
+          // Fallback to the app.asar file
+          const asarPath = path.join(
+            process.resourcesPath,
+            "app.asar",
+            "dist",
+            "index.html"
+          );
+          console.log(`Falling back to app.asar: ${asarPath}`);
 
-          if (fs.existsSync(indexPath)) {
-            console.log(`Loading file: ${indexPath}`);
-            mainWindow.loadFile(indexPath);
+          if (fs.existsSync(asarPath)) {
+            // Use file:// protocol with the correct format
+            console.log(`Loading from app.asar: ${asarPath}`);
+            mainWindow.loadFile(asarPath);
           } else {
             console.error("Could not find index.html in any location");
             mainWindow.loadURL(
@@ -389,6 +621,89 @@ app.whenReady().then(() => {
   // Set up IPC handler for getting the server port
   ipcMain.handle("get-server-port", () => {
     return global.serverPort || 3001;
+  });
+
+  // Set up IPC handler for getting the WebSocket port
+  ipcMain.handle("get-ws-port", () => {
+    return global.wsPort || global.serverPort || 3001;
+  });
+
+  // Set up IPC handler for watching a directory
+  ipcMain.handle("watch-directory", (event, directory) => {
+    try {
+      console.log(`Received watch-directory request for: ${directory}`);
+
+      if (!directory) {
+        console.log("No directory specified");
+        return { success: false, error: "Directory path not specified" };
+      }
+
+      // Normalize the path to handle any potential issues
+      const normalizedPath = path.normalize(directory);
+      console.log(`Normalized path: ${normalizedPath}`);
+
+      // Check if the directory exists
+      if (!fs.existsSync(normalizedPath)) {
+        console.log(`Directory not found: ${normalizedPath}`);
+        return { success: false, error: "Directory not found" };
+      }
+
+      // Look for .maestro/tests directory
+      let testsDir = normalizedPath;
+      if (!normalizedPath.endsWith(".maestro/tests")) {
+        const maestroTestsPath = path.join(normalizedPath, ".maestro", "tests");
+        console.log(`Checking for .maestro/tests at: ${maestroTestsPath}`);
+
+        if (fs.existsSync(maestroTestsPath)) {
+          testsDir = maestroTestsPath;
+          console.log(`Found .maestro/tests directory at: ${testsDir}`);
+        } else {
+          console.log(
+            `No .maestro/tests directory found at: ${maestroTestsPath}`
+          );
+          return {
+            success: false,
+            error: "No .maestro/tests directory found in the specified path",
+          };
+        }
+      }
+
+      // Verify we can access the directory
+      try {
+        fs.accessSync(testsDir, fs.constants.R_OK);
+      } catch (accessError) {
+        console.error(`Cannot access directory ${testsDir}:`, accessError);
+        return {
+          success: false,
+          error: `Cannot access directory: ${accessError.message}`,
+          code: accessError.code,
+        };
+      }
+
+      // Set up the watcher
+      const watcherResult = setupWatcher(testsDir);
+
+      if (!watcherResult) {
+        return {
+          success: false,
+          error: "Failed to set up watcher for the directory",
+        };
+      }
+
+      return {
+        success: true,
+        message: "Now watching for changes in " + testsDir,
+        watchingDirectory: testsDir,
+      };
+    } catch (error) {
+      console.error("Error setting up directory watch:", error);
+      return {
+        success: false,
+        error: "Failed to set up directory watch: " + error.message,
+        code: error.code,
+        stack: error.stack,
+      };
+    }
   });
 
   app.on("activate", () => {

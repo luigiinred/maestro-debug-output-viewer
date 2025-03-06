@@ -4,6 +4,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld("electron", {
   // Add any IPC methods you need to expose here
+  revealInFinder: (folderPath) => {
+    return ipcRenderer.invoke("reveal-in-finder", folderPath);
+  },
   // For example:
   // send: (channel, data) => {
   //   // whitelist channels

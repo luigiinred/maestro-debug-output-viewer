@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
@@ -116,6 +116,17 @@ function createWindow() {
 // This method will be called when Electron has finished initialization
 app.whenReady().then(() => {
   createWindow();
+
+  // Set up IPC handlers
+  ipcMain.handle("reveal-in-finder", async (event, folderPath) => {
+    try {
+      await shell.showItemInFolder(folderPath);
+      return { success: true };
+    } catch (error) {
+      console.error("Error revealing folder in finder:", error);
+      return { success: false, error: error.message };
+    }
+  });
 
   app.on("activate", () => {
     // On macOS it's common to re-create a window in the app when the

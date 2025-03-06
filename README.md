@@ -49,6 +49,30 @@ npm run electron:build
 
 The built application will be available in the `release` directory.
 
+### Publishing to GitHub Releases
+
+To publish the application to GitHub Releases:
+
+1. Make sure you have a GitHub token with the `repo` scope:
+
+   - Go to [GitHub Personal Access Tokens](https://github.com/settings/tokens)
+   - Create a new token with the `repo` scope
+   - Add the token to your `.env` file as `GITHUB_TOKEN=your_token_here`
+
+2. Build and publish the application:
+
+```bash
+npm run publish
+```
+
+This will:
+
+- Build the application for all configured platforms
+- Create a new GitHub release (as a draft by default)
+- Upload the build artifacts to the release
+
+You can customize the publishing behavior in the `forge.config.cjs` file under the `publishers` section.
+
 ## Mac App
 
 To build the Mac app:
@@ -84,6 +108,7 @@ To enable automatic building and signing of the application in GitHub Actions, y
 5. `CSC_LINK`: Base64-encoded certificate (.p12 file)
 6. `CSC_KEY_PASSWORD`: Password for the certificate
 7. `KEYCHAIN_PASSWORD`: A temporary password for the keychain in GitHub Actions (can be any secure string)
+8. `GITHUB_TOKEN`: Your GitHub personal access token with `repo` scope (for publishing releases)
 
 ### Setting up the KEYCHAIN_PASSWORD secret
 

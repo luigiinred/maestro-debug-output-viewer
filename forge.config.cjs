@@ -41,6 +41,7 @@ module.exports = {
             appleId: process.env.APPLE_ID,
             appleIdPassword: process.env.APPLE_ID_PASSWORD,
             teamId: process.env.APPLE_TEAM_ID,
+            staple: true,
           }
         : undefined,
     icon: path.resolve("electron/icons/icon"),
@@ -73,6 +74,7 @@ module.exports = {
         callback();
       },
     ],
+    afterSign: path.resolve("electron/notarize.cjs"),
   },
   rebuildConfig: {},
   makers: [
@@ -126,7 +128,7 @@ module.exports = {
       name: "@electron-forge/publisher-github",
       config: {
         repository: {
-          owner: "timmyg",
+          owner: "luigiinred",
           name: "maestro-debug-output-viewer",
         },
         prerelease: false,

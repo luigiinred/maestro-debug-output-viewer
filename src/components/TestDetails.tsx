@@ -34,10 +34,10 @@ export function TestDetails({ testId }: TestDetailsProps) {
   }
 
   return (
-    <Box sx={{ 
-      height: '100%', 
-      display: 'flex', 
-      flexDirection: 'column', 
+    <Box sx={{
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
       overflow: 'hidden'
     }}>
       {/* Title Section - Takes minimum space needed */}
@@ -46,24 +46,23 @@ export function TestDetails({ testId }: TestDetailsProps) {
         commandCount={commands.length}
         startTime={parseInt(startTime) || 0}
         passed={passed}
+        testPath={testId}
       />
 
       {/* Main Content Area - Takes remaining height */}
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexGrow: 1,
         overflow: 'hidden',
-        gap: 2,
+        borderRadius: 2,
         p: 2,
-        pl: 3
+        pt: 1
       }}>
         {/* Left Panel - Command List */}
-        <Box sx={{ 
+        <Box sx={{
           flexGrow: 1,
           overflow: 'auto',
-          backgroundColor: 'background.paper',
           height: '100%',
-          
         }}>
           <CompactTestDetails
             commands={commands}
@@ -74,13 +73,13 @@ export function TestDetails({ testId }: TestDetailsProps) {
         </Box>
 
         {/* Right Panel - Flow Images */}
-        <Box sx={{ 
+        {/* <Box sx={{
           width: '375px', // iPhone width
           flexShrink: 0,
           overflow: 'auto',
           backgroundColor: 'background.default',
           height: '100%',
-          
+
         }}>
           {directory && flowName && (
             <FlowImages
@@ -89,7 +88,7 @@ export function TestDetails({ testId }: TestDetailsProps) {
               flowName={flowName}
             />
           )}
-        </Box>
+        </Box> */}
       </Box>
     </Box>
   );
