@@ -137,6 +137,10 @@ export const createDeleteTestRunUrl = async (
   return createApiUrl("/api/test-run", { path: testRunPath });
 };
 
+export const createRunMaestroTestUrl = async (): Promise<string> => {
+  return createApiUrl("/api/run-maestro-test");
+};
+
 // Add TypeScript interface for the window object
 declare global {
   interface Window {

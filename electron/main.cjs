@@ -298,6 +298,44 @@ function startServer() {
     }
   });
 
+  // Add endpoint for running Maestro tests
+  server.post("/api/run-maestro-test", (req, res) => {
+    try {
+      const { command } = req.body;
+
+      if (!command) {
+        return res.status(400).json({ error: "Command not specified" });
+      }
+
+      console.log(`Executing Maestro test command: ${command}`);
+
+      // Execute the command
+      const { exec } = require("child_process");
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error executing command: ${error.message}`);
+          return res.status(500).json({
+            error: `Failed to execute command: ${error.message}`,
+            stderr: stderr,
+          });
+        }
+
+        console.log(`Command executed successfully`);
+        res.json({
+          success: true,
+          message: "Command executed successfully",
+          stdout: stdout,
+          stderr: stderr,
+        });
+      });
+    } catch (error) {
+      console.error("Error running Maestro test:", error);
+      res.status(500).json({
+        error: "Failed to run Maestro test: " + error.message,
+      });
+    }
+  });
+
   // Try to start the server with port fallback
   return new Promise((resolve, reject) => {
     const attemptListen = (currentPort, attemptsLeft) => {

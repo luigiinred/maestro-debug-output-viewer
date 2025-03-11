@@ -18,8 +18,8 @@ interface StackTraceComponentProps {
   commandName?: string;
 }
 
-export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({ 
-  metadata, 
+export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({
+  metadata,
   testDirectory,
   commandName
 }) => {
@@ -33,10 +33,10 @@ export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({
     if (metadata?.timestamp && testDirectory && commandName) {
       setLoading(true);
       setError(null);
-      
+
       // Construct the URL for the screenshot
       const url = `/api/screenshot?directory=${encodeURIComponent(testDirectory)}&timestamp=${metadata.timestamp}&commandName=${encodeURIComponent(commandName)}`;
-      
+
       // Check if the screenshot exists
       fetch(url, { method: 'HEAD' })
         .then(response => {
@@ -67,14 +67,17 @@ export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({
   const { message, stackTrace, hierarchyRoot } = metadata.error;
 
   return (
-    <Paper 
-      elevation={0} 
-      sx={{ 
-        mt: 2, 
-        mb: 2, 
+    <Paper
+      elevation={0}
+      sx={{
+        mt: 2,
+        mb: 2,
         border: '1px solid #f44336',
         borderRadius: 1,
-        overflow: 'hidden'
+        overflow: 'auto',
+        maxHeight: '100%',
+        display: 'flex',
+        flexDirection: 'column'
       }}
     >
       <Box sx={{ p: 2, backgroundColor: 'rgba(244, 67, 54, 0.08)' }}>
@@ -82,23 +85,23 @@ export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({
           Error Details
         </Typography>
       </Box>
-      
+
       <Divider />
-      
-      <Box sx={{ p: 2 }}>
-        <Typography variant="body2" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', mb: 2 }}>
+
+      <Box sx={{ p: 2, overflow: 'auto' }}>
+        <Typography variant="body2" sx={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', mb: 2, overflow: 'auto' }}>
           {message}
         </Typography>
       </Box>
-      
+
       {/* Screenshot section */}
       {(screenshotUrl || loading || error) && (
-        <Accordion 
-          expanded={expanded === 'screenshotPanel'} 
+        <Accordion
+          expanded={expanded === 'screenshotPanel'}
           onChange={handleChange('screenshotPanel')}
           disableGutters
           elevation={0}
-          sx={{ 
+          sx={{
             '&:before': { display: 'none' },
             borderTop: '1px solid rgba(0, 0, 0, 0.12)'
           }}
@@ -114,30 +117,30 @@ export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({
               {loading && <CircularProgress size={40} />}
               {error && <Typography color="error">{error}</Typography>}
               {screenshotUrl && (
-                <img 
-                  src={screenshotUrl} 
-                  alt="Failure Screenshot" 
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '400px',
+                <img
+                  src={screenshotUrl}
+                  alt="Failure Screenshot"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '300px',
                     objectFit: 'contain',
                     border: '1px solid #ddd',
                     borderRadius: '4px'
-                  }} 
+                  }}
                 />
               )}
             </Box>
           </AccordionDetails>
         </Accordion>
       )}
-      
+
       {stackTrace && stackTrace.length > 0 && (
-        <Accordion 
-          expanded={expanded === 'stackTracePanel'} 
+        <Accordion
+          expanded={expanded === 'stackTracePanel'}
           onChange={handleChange('stackTracePanel')}
           disableGutters
           elevation={0}
-          sx={{ 
+          sx={{
             '&:before': { display: 'none' },
             borderTop: '1px solid rgba(0, 0, 0, 0.12)'
           }}
@@ -149,13 +152,13 @@ export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({
             <Typography variant="body2" fontWeight="500">Stack Trace</Typography>
           </AccordionSummary>
           <AccordionDetails sx={{ p: 0 }}>
-            <Box sx={{ p: 2, maxHeight: '300px', overflow: 'auto' }}>
+            <Box sx={{ p: 2, maxHeight: '200px', overflow: 'auto' }}>
               {stackTrace.map((trace: StackTrace, index: number) => (
-                <Typography 
-                  key={index} 
-                  variant="body2" 
-                  sx={{ 
-                    fontFamily: 'monospace', 
+                <Typography
+                  key={index}
+                  variant="body2"
+                  sx={{
+                    fontFamily: 'monospace',
                     fontSize: '0.8rem',
                     mb: 0.5,
                     whiteSpace: 'pre-wrap'
@@ -168,14 +171,14 @@ export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({
           </AccordionDetails>
         </Accordion>
       )}
-      
+
       {hierarchyRoot && (
-        <Accordion 
-          expanded={expanded === 'hierarchyPanel'} 
+        <Accordion
+          expanded={expanded === 'hierarchyPanel'}
           onChange={handleChange('hierarchyPanel')}
           disableGutters
           elevation={0}
-          sx={{ 
+          sx={{
             '&:before': { display: 'none' },
             borderTop: '1px solid rgba(0, 0, 0, 0.12)'
           }}
@@ -187,13 +190,14 @@ export const StackTraceComponent: React.FC<StackTraceComponentProps> = ({
             <Typography variant="body2" fontWeight="500">UI Hierarchy</Typography>
           </AccordionSummary>
           <AccordionDetails sx={{ p: 0 }}>
-            <Box sx={{ p: 2, maxHeight: '300px', overflow: 'auto' }}>
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  fontFamily: 'monospace', 
+            <Box sx={{ p: 2, maxHeight: '200px', overflow: 'auto' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: 'monospace',
                   fontSize: '0.8rem',
-                  whiteSpace: 'pre-wrap'
+                  whiteSpace: 'pre-wrap',
+                  overflow: 'auto'
                 }}
               >
                 {JSON.stringify(hierarchyRoot, null, 2)}

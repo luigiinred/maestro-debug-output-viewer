@@ -17,13 +17,13 @@ interface CommandDetailsSidebarProps {
 
 export function CommandDetailsSidebar({ command, onClose }: CommandDetailsSidebarProps) {
   const location = useLocation();
-  
+
   // Extract test directory from the URL and get the parent directory (test run directory)
   const testDirectory = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const dir = params.get('dir') || '';
     console.log('CommandDetailsSidebar - Raw dir from URL:', dir);
-    
+
     // If we have a .maestro directory, we need to get its parent to get to the test run directory
     if (dir.endsWith('.maestro')) {
       const parentDir = path.dirname(dir);
@@ -35,14 +35,14 @@ export function CommandDetailsSidebar({ command, onClose }: CommandDetailsSideba
 
   console.log('CommandDetailsSidebar - Final testDirectory:', testDirectory);
   console.log('CommandDetailsSidebar - Command:', command);
-  
+
   if (!command) {
     return null;
   }
 
   const commandName = getCommandName(command.command);
   console.log('CommandDetailsSidebar - Command name:', commandName);
-  
+
   const isFailed = command.metadata?.status === 'FAILED';
 
   // Remove 'Command' suffix if present and convert to lowercase
@@ -83,9 +83,9 @@ export function CommandDetailsSidebar({ command, onClose }: CommandDetailsSideba
 
       {/* Show StackTraceComponent for failed commands */}
       {isFailed && (
-        <Box sx={{ mb: 2 }}>
-          <StackTraceComponent 
-            metadata={command.metadata} 
+        <Box sx={{ mb: 2, overflow: 'auto', flexShrink: 1 }}>
+          <StackTraceComponent
+            metadata={command.metadata}
             testDirectory={testDirectory}
             commandName={commandName}
           />
@@ -105,8 +105,8 @@ export function CommandDetailsSidebar({ command, onClose }: CommandDetailsSideba
             fontSize: '0.85rem',
           }}
         >
-          <JsonViewer 
-            data={command.command} 
+          <JsonViewer
+            data={command.command}
             initialExpanded={true}
             maxLevel={5}
           />
@@ -123,8 +123,8 @@ export function CommandDetailsSidebar({ command, onClose }: CommandDetailsSideba
             fontSize: '0.85rem',
           }}
         >
-          <JsonViewer 
-            data={command.metadata} 
+          <JsonViewer
+            data={command.metadata}
             initialExpanded={true}
             maxLevel={5}
           />

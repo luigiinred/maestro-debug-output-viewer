@@ -16,6 +16,7 @@ import {
 import { TestExplorer } from './components/TestExplorer'
 import { TestDetails } from './components/TestDetails'
 import { Settings } from './components/Settings'
+import { RunFlows } from './components/RunFlows'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { Sidebar } from './components/Sidebar'
 
@@ -80,16 +81,22 @@ function AppContent() {
   const currentPath = location.pathname;
 
   // Determine active page for sidebar
-  const activePage = currentPath.includes('/settings') ? 'settings' : 'explorer';
+  let activePage = 'explorer';
+  if (currentPath.includes('/settings')) {
+    activePage = 'settings';
+  } else if (currentPath.includes('/runflows')) {
+    activePage = 'runflows';
+  }
 
   return (
-    <Box sx={{ display: 'flex' }}>
-      <Sidebar activePage={activePage} />
-      <Box sx={{ flexGrow: 1 }}>
+    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <Sidebar activePage={activePage as 'explorer' | 'settings' | 'runflows'} />
+      <Box sx={{ flexGrow: 1, overflow: 'auto', maxHeight: '100vh' }}>
         <Routes>
           <Route path="/" element={<MainContent />} />
           <Route path="/test/:testPath" element={<MainContent />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/runflows" element={<RunFlows />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Box>

@@ -54,7 +54,7 @@ export function TestHeader({ testName, commandCount, startTime, passed, testPath
           {testName}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {testPath && (
+          {/* {testPath && (
             <Tooltip title="Reveal in Finder">
               <Button
                 variant="outlined"
@@ -65,7 +65,7 @@ export function TestHeader({ testName, commandCount, startTime, passed, testPath
                 Reveal in Finder
               </Button>
             </Tooltip>
-          )}
+          )} */}
           {passed !== null && (
             <Typography
               variant="body1"
