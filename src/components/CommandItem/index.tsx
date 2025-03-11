@@ -5,6 +5,7 @@ import { TapOnCommandItem } from './CommandItemTypes/TapOnCommandItem';
 import { RunFlowCommandItem } from './CommandItemTypes/RunFlowCommandItem';
 import { UnknownCommandItem } from './CommandItemTypes/UnknownCommandItem';
 import { LaunchAppCommandItem } from './CommandItemTypes/LaunchAppCommandItem';
+import { AutomaticScreenshotCommandItem } from './CommandItemTypes/AutomaticScreenshotCommandItem';
 
 // Factory function to determine which CommandItem component to use
 const getCommandItemComponent = (commandEntry: CommandEntry) => {
@@ -25,6 +26,8 @@ const getCommandItemComponent = (commandEntry: CommandEntry) => {
       return RunFlowCommandItem;
     case 'launchAppCommand':
       return LaunchAppCommandItem;
+    case 'automaticScreenshotCommand':
+      return AutomaticScreenshotCommandItem;
     // All other command types use the base component
     default:
       return BaseCommandItem;
@@ -36,8 +39,8 @@ export type { BaseCommandItemProps as CommandItemProps };
 
 export const CommandItem: React.FC<BaseCommandItemProps> = (props) => {
   const { commandEntry } = props;
-  
+
   const CommandItemComponent = getCommandItemComponent(commandEntry);
-  
+
   return <CommandItemComponent {...props} />;
 };

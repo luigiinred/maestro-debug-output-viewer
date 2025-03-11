@@ -1,4 +1,4 @@
-import { Box, Typography, Paper, Divider, IconButton, Link } from '@mui/material';
+import { Box, Typography, Paper, Divider, IconButton, Link, Modal } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { CommandEntry } from '../../types/commandTypes';
@@ -6,13 +6,116 @@ import { getCommandName } from '../../utils/commandUtils';
 import { JsonViewer } from '../common/JsonViewer';
 import { StackTraceComponent } from '../common/StackTraceComponent';
 import { useLocation } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { CommandImages } from './CommandImages';
 import path from 'path-browserify';
+import { getApiBaseUrl } from '../../utils/apiConfig';
 
 interface CommandDetailsSidebarProps {
   command: CommandEntry | null;
   onClose: () => void;
+}
+
+// Component to display automatic screenshot at the top
+function AutomaticScreenshot({ command }: { command: CommandEntry }) {
+  const [baseUrl, setBaseUrl] = useState<string>('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Get the base URL once when the component mounts
+  useEffect(() => {
+    const getBaseUrl = async () => {
+      const url = await getApiBaseUrl();
+      setBaseUrl(url);
+    };
+    getBaseUrl();
+  }, []);
+
+  // Check if this is an automatic screenshot command
+  if (!command.command.automaticScreenshotCommand?.imageUrl) {
+    return null;
+  }
+
+  const imageUrl = command.command.automaticScreenshotCommand.imageUrl;
+  const fullImageUrl = `${baseUrl}${imageUrl}`;
+
+  // Format timestamp
+  const timestamp = command.metadata?.timestamp || 0;
+  const date = new Date(timestamp);
+  const formattedTimestamp = date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }) + '.' + date.getMilliseconds().toString().padStart(3, '0');
+
+  return (
+    <Box sx={{ mb: 3 }}>
+      <Typography variant="subtitle2" gutterBottom>
+        Automatic Screenshot
+      </Typography>
+      <Box
+        sx={{
+          cursor: 'pointer',
+          '&:hover': {
+            opacity: 0.9,
+          }
+        }}
+        onClick={() => setIsModalOpen(true)}
+      >
+        <img
+          src={fullImageUrl}
+          alt="Automatic Screenshot"
+          style={{
+            width: '100%',
+            maxHeight: '300px',
+            objectFit: 'contain',
+            border: '1px solid #eee',
+            borderRadius: '4px'
+          }}
+        />
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+          Captured at {formattedTimestamp} (click to enlarge)
+        </Typography>
+      </Box>
+
+      {/* Modal for displaying the full-size screenshot */}
+      <Modal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        aria-labelledby="screenshot-modal"
+        aria-describedby="view full screenshot"
+      >
+        <Box sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          bgcolor: 'background.paper',
+          boxShadow: 24,
+          p: 4,
+          maxWidth: '90vw',
+          maxHeight: '90vh',
+          overflow: 'auto',
+          borderRadius: 2,
+        }}>
+          <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
+            Automatic Screenshot
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Captured at {formattedTimestamp}
+          </Typography>
+          <img
+            src={fullImageUrl}
+            alt="Automatic Screenshot"
+            style={{ maxWidth: '100%', maxHeight: '70vh' }}
+          />
+        </Box>
+      </Modal>
+    </Box>
+  );
 }
 
 export function CommandDetailsSidebar({ command, onClose }: CommandDetailsSidebarProps) {
@@ -70,7 +173,7 @@ export function CommandDetailsSidebar({ command, onClose }: CommandDetailsSideba
           <Typography variant="h6" component="h2">
             {commandName} Details
           </Typography>
-          <Link href={`https://docs.maestro.dev/api-reference/commands/${commandName.toLowerCase()}`} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', alignItems: 'center' }}>
+          <Link href={docsUrl} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', alignItems: 'center' }}>
             <OpenInNewIcon fontSize="small" />
           </Link>
         </Box>
@@ -80,6 +183,11 @@ export function CommandDetailsSidebar({ command, onClose }: CommandDetailsSideba
       </Box>
 
       <Divider sx={{ mb: 2 }} />
+
+      {/* Display automatic screenshot at the top if this is an automatic screenshot command */}
+      {command.command.automaticScreenshotCommand && (
+        <AutomaticScreenshot command={command} />
+      )}
 
       {/* Show StackTraceComponent for failed commands */}
       {isFailed && (

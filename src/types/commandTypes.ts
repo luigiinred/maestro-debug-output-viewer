@@ -129,6 +129,13 @@ export type WaitForAnimationToEndCommand = {
   optional: boolean;
 };
 
+// New command type for automatic screenshots
+export type AutomaticScreenshotCommand = {
+  imageUrl: string;
+  imagePath: string;
+  optional: boolean;
+};
+
 // Command type with optional properties for each command type
 export type Command = {
   assertConditionCommand?: AssertConditionCommand;
@@ -147,6 +154,7 @@ export type Command = {
   scrollUntilVisible?: EnhancedScrollUntilVisibleCommand;
   setAirplaneModeCommand?: SetAirplaneModeCommand;
   waitForAnimationToEndCommand?: WaitForAnimationToEndCommand;
+  automaticScreenshotCommand?: AutomaticScreenshotCommand;
 };
 
 export type StackTrace = {
@@ -172,4 +180,4 @@ export type Metadata = {
 export type CommandEntry = {
   command: Command;
   metadata: Metadata;
-}; 
+};

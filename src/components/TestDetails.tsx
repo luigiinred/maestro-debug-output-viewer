@@ -1,31 +1,84 @@
-import { Box } from '@mui/material';
+import { Box, FormControlLabel, Switch } from '@mui/material';
 import { useTestDetails } from '../hooks/useTestDetails';
 import { ErrorDisplay } from './test-details/ErrorDisplay';
 import { CompactTestDetails } from './test-details/CompactTestDetails';
 import { FlowImages } from './test-details/FlowImages';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import '../styles/split-pane.css';
 import { TestHeader } from './test-details/TestHeader';
 import { isTestFailed } from '../utils/testStatusUtils';
+import { CommandEntry } from '../types/commandTypes';
+import { createFlowImagesUrl } from '../utils/apiConfig';
+import { injectAutomaticScreenshots } from '../utils/injectAutomaticScreenshots';
 
 interface TestDetailsProps {
   testId: string;
 }
 
+// Define the FlowImage interface to match what's in FlowImages.tsx
+interface FlowImage {
+  path: string;
+  url: string;
+  timestamp: number;
+  filename: string;
+}
+
 export function TestDetails({ testId }: TestDetailsProps) {
-  const { commands, error, testName, startTime, loading, directory, flowName } = useTestDetails(testId);
+  const { commands: originalCommands, error, testName, startTime, loading, directory, flowName } = useTestDetails(testId);
+  const [commands, setCommands] = useState<CommandEntry[]>([]);
+  const [flowImages, setFlowImages] = useState<FlowImage[]>([]);
+  const [imagesLoading, setImagesLoading] = useState<boolean>(false);
+  const [showScreenshotCommands, setShowScreenshotCommands] = useState<boolean>(true);
 
   const passed = !isTestFailed(commands);
+
+  // Fetch flow images when directory and flowName are available
+  useEffect(() => {
+    const fetchFlowImages = async () => {
+      if (!directory || !flowName) return;
+
+      setImagesLoading(true);
+      try {
+        const apiUrl = await createFlowImagesUrl(directory, flowName);
+        const response = await fetch(apiUrl);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch flow images');
+        }
+
+        const data = await response.json();
+        setFlowImages(data.images);
+      } catch (err) {
+        console.error('Error fetching flow images:', err);
+      } finally {
+        setImagesLoading(false);
+      }
+    };
+
+    fetchFlowImages();
+  }, [directory, flowName]);
+
+  // Inject automatic screenshots when originalCommands or flowImages change
+  useEffect(() => {
+    if (originalCommands.length > 0 && flowImages.length > 0 && showScreenshotCommands) {
+      const commandsWithScreenshots = injectAutomaticScreenshots(originalCommands, flowImages);
+      setCommands(commandsWithScreenshots);
+    } else {
+      setCommands(originalCommands);
+    }
+  }, [originalCommands, flowImages, showScreenshotCommands]);
+
   useEffect(() => {
     console.log('TestDetails received:', {
       directory,
       flowName,
       testId,
-      hasCommands: commands.length > 0
+      hasCommands: commands.length > 0,
+      hasFlowImages: flowImages.length > 0
     });
-  }, [directory, flowName, testId, commands]);
+  }, [directory, flowName, testId, commands, flowImages]);
 
-  if (loading) {
+  if (loading || imagesLoading) {
     return <Box sx={{ p: 2 }}>Loading test details...</Box>;
   }
 
@@ -73,8 +126,8 @@ export function TestDetails({ testId }: TestDetailsProps) {
         </Box>
 
         {/* Right Panel - Flow Images */}
-        {/* <Box sx={{
-          width: '375px', // iPhone width
+        <Box sx={{
+          width: '0', // iPhone width
           flexShrink: 0,
           overflow: 'auto',
           backgroundColor: 'background.default',
@@ -88,7 +141,7 @@ export function TestDetails({ testId }: TestDetailsProps) {
               flowName={flowName}
             />
           )}
-        </Box> */}
+        </Box>
       </Box>
     </Box>
   );
