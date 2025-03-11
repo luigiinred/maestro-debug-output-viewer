@@ -19,7 +19,7 @@ interface CommandDetailsSidebarProps {
 // Component to display automatic screenshot at the top
 function AutomaticScreenshot({ command }: { command: CommandEntry }) {
   const [baseUrl, setBaseUrl] = useState<string>('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
 
   // Get the base URL once when the component mounts
   useEffect(() => {
@@ -63,57 +63,24 @@ function AutomaticScreenshot({ command }: { command: CommandEntry }) {
             opacity: 0.9,
           }
         }}
-        onClick={() => setIsModalOpen(true)}
       >
         <img
           src={fullImageUrl}
           alt="Automatic Screenshot"
           style={{
             width: '100%',
-            maxHeight: '300px',
+            maxHeight: '800px',
             objectFit: 'contain',
             border: '1px solid #eee',
             borderRadius: '4px'
           }}
         />
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-          Captured at {formattedTimestamp} (click to enlarge)
+          Captured at {formattedTimestamp}
         </Typography>
       </Box>
 
-      {/* Modal for displaying the full-size screenshot */}
-      <Modal
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        aria-labelledby="screenshot-modal"
-        aria-describedby="view full screenshot"
-      >
-        <Box sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          bgcolor: 'background.paper',
-          boxShadow: 24,
-          p: 4,
-          maxWidth: '90vw',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          borderRadius: 2,
-        }}>
-          <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
-            Automatic Screenshot
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Captured at {formattedTimestamp}
-          </Typography>
-          <img
-            src={fullImageUrl}
-            alt="Automatic Screenshot"
-            style={{ maxWidth: '100%', maxHeight: '70vh' }}
-          />
-        </Box>
-      </Modal>
+
     </Box>
   );
 }
